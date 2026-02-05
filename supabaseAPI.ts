@@ -622,6 +622,15 @@ export const api = {
         await supabase.from('channel_files').delete().eq('id', fileId).eq('channel_id', channelId);
     },
 
+    renameFile: async (fileId: string, newName: string) => {
+        const { error } = await supabase
+            .from('channel_files')
+            .update({ name: newName })
+            .eq('id', fileId);
+
+        if (error) throw new Error('Failed to rename file: ' + error.message);
+    },
+
     // ============================================
     // SPECS
     // ============================================
