@@ -160,7 +160,7 @@ const App: React.FC = () => {
                     <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
                         <div className="flex items-start gap-4">
                             <div className="h-16 w-16 bg-gray-50 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-inner">
-                                <img src="/app-icon.png" alt="Kramiz" className="w-10 h-10 object-contain" />
+                                <img src="/Kramiz%20app%20icon.png" alt="Kramiz" className="w-10 h-10 object-contain" />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h3 className="text-xl font-black text-gray-900 leading-tight">Install Kramiz</h3>

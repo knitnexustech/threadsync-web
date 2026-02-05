@@ -571,6 +571,24 @@ export const api = {
     // FILES
     // ============================================
 
+    uploadFile: async (file: File, bucket: string = 'spec-files') => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from(bucket)
+            .upload(filePath, file);
+
+        if (uploadError) throw new Error('Upload error: ' + uploadError.message);
+
+        const { data: { publicUrl } } = supabase.storage
+            .from(bucket)
+            .getPublicUrl(filePath);
+
+        return publicUrl;
+    },
+
     addFileToChannel: async (currentUser: User, channelId: string, fileName: string, url: string = '#') => {
         const { data, error } = await supabase
             .from('channel_files')
@@ -749,7 +767,19 @@ export const api = {
             .from('companies')
             .update({ name: newName })
             .eq('id', companyId);
-        if (error) throw error;
-        return true;
+
+        if (error) throw new Error('Failed to update company name: ' + error.message);
+    },
+
+    deleteOrganization: async (currentUser: User, companyId: string) => {
+        if (currentUser.role !== 'ADMIN') throw new Error('Only admins can delete organization');
+        if (currentUser.company_id !== companyId) throw new Error('Unauthorized');
+
+        const { error } = await supabaseAdmin
+            .from('companies')
+            .delete()
+            .eq('id', companyId);
+
+        if (error) throw new Error('Failed to delete organization: ' + error.message);
     }
 };

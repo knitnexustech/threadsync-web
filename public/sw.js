@@ -1,10 +1,11 @@
 // Basic Service Worker for PWA Offline Support and Push Notifications
-const CACHE_NAME = 'kramiz-v1';
+const CACHE_NAME = 'kramiz-v2';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
     '/manifest.json',
-    '/app-icon.png'
+    '/favicon.png',
+    '/Kramiz%20app%20icon.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -29,8 +30,8 @@ self.addEventListener('push', (event) => {
 
     const options = {
         body: data.body,
-        icon: '/app-icon.png',
-        badge: '/app-icon.png',
+        icon: '/Kramiz%20app%20icon.png',
+        badge: '/favicon.png',
         vibrate: [100, 50, 100],
         data: {
             url: data.url || '/'

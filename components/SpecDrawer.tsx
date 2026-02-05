@@ -29,18 +29,28 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
         setSpecs(channel.specs || []);
     }, [channel.files, channel.specs]);
 
+    const [isUploading, setIsUploading] = useState(false);
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            // Create a temporary object URL for the uploaded file so it can be viewed immediately
-            const objectUrl = URL.createObjectURL(file);
+            const selectedFiles = Array.from(e.target.files);
+            setIsUploading(true);
 
             try {
-                const newFile = await api.addFileToChannel(currentUser, channel.id, file.name, objectUrl);
-                setFiles(prev => [...prev, newFile]);
-            } catch (err) {
+                for (const file of selectedFiles) {
+                    // 1. Upload to Supabase Storage
+                    const publicUrl = await api.uploadFile(file);
+
+                    // 2. Save reference to Database
+                    const newFile = await api.addFileToChannel(currentUser, channel.id, file.name, publicUrl);
+                    setFiles(prev => [...prev, newFile]);
+                }
+            } catch (err: any) {
                 console.error(err);
-                alert("Failed to upload file");
+                alert("Failed to upload: " + err.message);
+            } finally {
+                setIsUploading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
             }
         }
     };
@@ -251,15 +261,21 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                                         onChange={handleFileUpload}
                                         className="hidden"
                                         accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                        multiple
                                     />
                                     <button
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="w-full border-2 border-dashed border-gray-300 rounded-lg p-3 text-gray-500 hover:border-[#008069] hover:text-[#008069] transition-all flex items-center justify-center gap-2 text-sm font-medium"
+                                        disabled={isUploading}
+                                        className="w-full border-2 border-dashed border-gray-300 rounded-lg p-3 text-gray-500 hover:border-[#008069] hover:text-[#008069] transition-all flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50"
                                     >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        <svg className={`w-5 h-5 ${isUploading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            {isUploading ? (
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            ) : (
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                            )}
                                         </svg>
-                                        Upload Document / Spec Sheet
+                                        {isUploading ? 'Uploading Please Wait...' : 'Upload Document / Spec Sheet'}
                                     </button>
                                 </>
                             ) : (

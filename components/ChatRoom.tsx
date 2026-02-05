@@ -178,12 +178,26 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         }
     };
 
+    const [isUploading, setIsUploading] = useState(false);
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            const objectUrl = URL.createObjectURL(file);
-            let msgContent = file.type.startsWith('image/') ? `[IMAGE] ${objectUrl} | ${file.name}` : `[FILE] ${objectUrl} | ${file.name}`;
-            sendMessageMutation.mutate({ content: msgContent });
+            const selectedFiles = Array.from(e.target.files);
+            setIsUploading(true);
+
+            try {
+                for (const file of selectedFiles) {
+                    const publicUrl = await api.uploadFile(file);
+                    let msgContent = file.type.startsWith('image/') ? `[IMAGE] ${publicUrl} | ${file.name}` : `[FILE] ${publicUrl} | ${file.name}`;
+                    sendMessageMutation.mutate({ content: msgContent });
+                }
+            } catch (err: any) {
+                console.error(err);
+                alert("Upload failed: " + err.message);
+            } finally {
+                setIsUploading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
         }
     };
 
@@ -312,12 +326,45 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                 <form onSubmit={handleSend} className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative">
                     <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg></button>
                     {showAttachMenu && (
-                        <div className="absolute bottom-12 left-0 bg-white shadow-xl rounded-lg p-2 flex flex-col gap-2 w-40 z-50 border border-gray-100 font-bold uppercase tracking-widest text-[10px]">
-                            <button type="button" onClick={() => handleAttachmentOption('Document')} className="p-2 hover:bg-gray-100 rounded text-left">📄 Document</button>
-                            <button type="button" onClick={() => handleAttachmentOption('Image')} className="p-2 hover:bg-gray-100 rounded text-left">📷 Image</button>
+                        <div className="absolute bottom-12 left-0 bg-white shadow-2xl rounded-2xl p-1 w-48 z-50 border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                            <button
+                                type="button"
+                                disabled={isUploading}
+                                onClick={() => handleAttachmentOption('Image')}
+                                className="w-full flex items-center gap-3 p-3 hover:bg-green-50 text-left transition-colors disabled:opacity-50"
+                            >
+                                <div className="h-8 w-8 rounded-lg bg-green-100 text-[#008069] flex items-center justify-center">
+                                    {isUploading ? <div className="w-4 h-4 border-2 border-[#008069] border-t-transparent animate-spin rounded-full"></div> : '📷'}
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-black text-gray-800 tracking-tight">Images</span>
+                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Photos / Art</span>
+                                </div>
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isUploading}
+                                onClick={() => handleAttachmentOption('Document')}
+                                className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 text-left transition-colors disabled:opacity-50"
+                            >
+                                <div className="h-8 w-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                                    {isUploading ? <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></div> : '📄'}
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-black text-gray-800 tracking-tight">Documents</span>
+                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Tech Packs</span>
+                                </div>
+                            </button>
                         </div>
                     )}
-                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        onChange={handleFileUpload}
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx"
+                    />
                     <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 py-3 px-4 rounded-full border-none focus:ring-0 text-sm shadow-sm" />
                     <button type="submit" disabled={!newMessage.trim()} className={`p-3 rounded-full shadow-md ${newMessage.trim() ? 'bg-[#008069] text-white' : 'bg-gray-300 text-gray-500'}`}><svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>
                 </form>

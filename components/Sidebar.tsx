@@ -77,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
     const [showSettings, setShowSettings] = useState(false);
 
     const [modalState, setModalState] = useState<{
-        type: 'NONE' | 'NEW_PO' | 'ADD_CHANNEL' | 'SUPPLIERS' | 'TEAM' | 'EDIT_PO' | 'DELETE_PO' | 'CHANGE_PASSCODE' | 'EDIT_COMPANY' | 'HOW_TO_INSTALL';
+        type: 'NONE' | 'NEW_PO' | 'ADD_CHANNEL' | 'SUPPLIERS' | 'TEAM' | 'EDIT_PO' | 'DELETE_PO' | 'CHANGE_PASSCODE' | 'EDIT_COMPANY' | 'HOW_TO_INSTALL' | 'DELETE_ORGANIZATION';
         data?: any;
     }>({ type: 'NONE' });
 
@@ -261,6 +261,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
         updateCompanyMutation.mutate(editCompanyName);
     };
 
+    const handleDeleteOrganization = async () => {
+        if (deleteConfirmText !== userCompany?.name) {
+            alert(`Please type "${userCompany?.name}" exactly to confirm.`);
+            return;
+        }
+
+        if (!window.confirm("FINAL WARNING: This will permanently delete ALL orders, channels, messages, and files for everyone in your organization. This cannot be undone. Are you absolutely sure?")) {
+            return;
+        }
+
+        try {
+            await api.deleteOrganization(currentUser, currentUser.company_id);
+            alert("Organization successfully deleted.");
+            onLogout();
+        } catch (err: any) {
+            alert(err.message || "Failed to delete organization");
+        }
+    };
+
     const openModal = async (type: typeof modalState.type, data?: any) => {
         setModalState({ type, data });
         if (type === 'ADD_CHANNEL' || type === 'SUPPLIERS') {
@@ -279,7 +298,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
         setShowSettings(false);
     };
 
-    const closeModal = () => setModalState({ type: 'NONE' });
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const closeModal = () => {
+        setModalState({ type: 'NONE' });
+        setDeleteConfirmText('');
+    };
     const getPartnerLabel = () => isVendor ? 'Clients' : 'Suppliers';
 
     return (
@@ -467,6 +490,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                 <button onClick={() => openModal('EDIT_COMPANY')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">🏢 Edit Company Name</button>
                             )}
                             <button onClick={() => openModal('CHANGE_PASSCODE')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">🔐 Change Passcode</button>
+                            {currentUser.role === 'ADMIN' && (
+                                <button onClick={() => openModal('DELETE_ORGANIZATION')} className="w-full text-left px-4 py-3 hover:bg-red-50 text-sm text-red-500 font-bold border-b border-gray-100 italic">🗑️ Delete Account / WIPEOUT Data</button>
+                            )}
                             <button onClick={onLogout} className="w-full text-left px-4 py-3 hover:bg-red-50 text-sm text-red-600 font-bold">🚪 Logout</button>
                         </div>
                     )}
@@ -641,6 +667,47 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     </div>
                     <div className="bg-green-50 p-4 rounded-2xl border border-green-100 mt-4">
                         <p className="text-xs text-[#008069] font-bold leading-relaxed">✨ Once added, Kramiz will work just like a native app on your phone!</p>
+                    </div>
+                </div>
+            </Modal>
+
+            <Modal
+                isOpen={modalState.type === 'DELETE_ORGANIZATION'}
+                onClose={closeModal}
+                title="⚠️ DELETE ORGANIZATION"
+                footer={
+                    <button
+                        onClick={handleDeleteOrganization}
+                        disabled={deleteConfirmText !== userCompany?.name}
+                        className="w-full bg-red-600 text-white px-4 py-3 rounded-lg text-sm font-bold hover:bg-red-700 disabled:bg-gray-300 transition-colors shadow-lg"
+                    >
+                        Permanently Delete Everything
+                    </button>
+                }
+            >
+                <div className="space-y-6 py-2">
+                    <div className="bg-red-50 p-4 rounded-xl border border-red-100">
+                        <p className="text-sm text-red-700 font-bold leading-relaxed mb-2">CRITICAL WARNING:</p>
+                        <p className="text-xs text-red-600 leading-relaxed">
+                            This action will wipe out all data related to **{userCompany?.name}**.
+                            This includes all purchase orders, groups, team members, suppliers,
+                            chat history, and tech specs.
+                        </p>
+                        <p className="text-[10px] text-red-500 font-black mt-3 uppercase tracking-widest">
+                            THIS ACTION CANNOT BE REVERSED.
+                        </p>
+                    </div>
+
+                    <div className="space-y-3">
+                        <p className="text-sm font-bold text-gray-700">Type <span className="text-red-600">"{userCompany?.name}"</span> to confirm:</p>
+                        <input
+                            type="text"
+                            autoFocus
+                            className="w-full border-2 border-red-100 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all"
+                            placeholder="Enter organization name"
+                            value={deleteConfirmText}
+                            onChange={e => setDeleteConfirmText(e.target.value)}
+                        />
                     </div>
                 </div>
             </Modal>
