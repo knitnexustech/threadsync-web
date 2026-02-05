@@ -65,22 +65,49 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         setCurrentStatus(channel.status);
     }, [channel.id, channel.name, channel.status]);
 
+    // Help show notification
+    const showNotification = (title: string, body: string) => {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(title, {
+                body,
+                icon: '/app-icon.png',
+                badge: '/app-icon.png'
+            });
+        }
+    };
+
     // Realtime Subscription
     useEffect(() => {
         const channelSubscription = supabase
             .channel(`messages:${channel.id}`)
             .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages',
+                filter: `channel_id=eq.${channel.id}`
+            }, (payload) => {
+                const newMsg = payload.new as Message;
+                // Don't show notification for own messages or system updates
+                if (newMsg.user_id !== currentUser.id && !newMsg.is_system_update) {
+                    showNotification(`New Message in ${channel.name}`, newMsg.content);
+                }
+                queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
+            })
+            .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
                 table: 'messages',
                 filter: `channel_id=eq.${channel.id}`
-            }, () => {
-                queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
+            }, (payload) => {
+                // For updates/deletes, just refresh
+                if (payload.eventType !== 'INSERT') {
+                    queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
+                }
             })
             .subscribe();
 
         return () => { supabase.removeChannel(channelSubscription); };
-    }, [channel.id, queryClient]);
+    }, [channel.id, channel.name, currentUser.id, queryClient]);
 
     // Mutations
     const sendMessageMutation = useMutation({

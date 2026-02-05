@@ -26,10 +26,34 @@ const App: React.FC = () => {
         setIsRestoringSession(false);
     }, []);
 
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+    // Listen for install prompt
+    useEffect(() => {
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+        });
+    }, []);
+
+    const [showInstallPopup, setShowInstallPopup] = useState(false);
+
     const handleLogin = (loggedInUser: User, rememberMe: boolean) => {
         saveSession(loggedInUser, rememberMe); // Save to storage
         setUser(loggedInUser);
         setView('APP');
+
+        // Ask for notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // Proactively invite to install after a short delay
+        if (deferredPrompt) {
+            setTimeout(() => {
+                setShowInstallPopup(true);
+            }, 1500); // 1.5s delay for a smoother experience
+        }
     };
 
     const handleLogout = () => {
@@ -89,6 +113,13 @@ const App: React.FC = () => {
                     selectedChannelId={selectedChannel?.c.id}
                     onSelectChannel={(c, p) => setSelectedChannel({ c, p })}
                     onLogout={handleLogout}
+                    installPrompt={deferredPrompt}
+                    onInstallApp={() => {
+                        if (deferredPrompt) {
+                            deferredPrompt.prompt();
+                            deferredPrompt.userChoice.then(() => setDeferredPrompt(null));
+                        }
+                    }}
                 />
             </div>
 
@@ -123,6 +154,45 @@ const App: React.FC = () => {
                     </div>
                 )}
             </div>
+            {/* Premium Installation Prompt */}
+            {showInstallPopup && deferredPrompt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] md:bg-transparent md:items-end md:justify-start md:p-8">
+                    <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
+                        <div className="flex items-start gap-4">
+                            <div className="h-16 w-16 bg-gray-50 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-inner">
+                                <img src="/app-icon.png" alt="Kramiz" className="w-10 h-10 object-contain" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-xl font-black text-gray-900 leading-tight">Install Kramiz</h3>
+                                <p className="text-sm text-gray-500 mt-1 leading-relaxed">Add Kramiz to your home screen for high-speed tracking and instant follow-ups.</p>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex gap-3">
+                            <button
+                                onClick={() => {
+                                    deferredPrompt.prompt();
+                                    deferredPrompt.userChoice.then((choice: any) => {
+                                        if (choice.outcome === 'accepted') {
+                                            console.log('User accepted the install prompt');
+                                        }
+                                        setDeferredPrompt(null);
+                                        setShowInstallPopup(false);
+                                    });
+                                }}
+                                className="flex-1 py-3 bg-[#008069] text-white rounded-xl font-bold text-sm hover:bg-[#006a57] shadow-lg shadow-green-900/10 transition-all active:scale-95"
+                            >
+                                Install Now
+                            </button>
+                            <button
+                                onClick={() => setShowInstallPopup(false)}
+                                className="px-5 py-3 bg-gray-50 text-gray-400 rounded-xl font-bold text-sm hover:bg-gray-100 hover:text-gray-600 transition-all font-blanka"
+                            >
+                                Later
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

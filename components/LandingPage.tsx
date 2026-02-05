@@ -51,11 +51,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
                         <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] uppercase">
                             The Operating System for <br />
-                            <span className="text-[#008069] font-blanka tracking-widest">Kramiz.</span>
+                            <span className="text-[#008069] font-bold tracking-widest">Follow-ups</span>
                         </h1>
 
                         <p className="text-xl text-gray-500 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-                            Kramiz automates the chaos of production communications. Track orders, manage specs, and streamline follow-ups in one high-speed platform.
+                            <></>Kramiz automates the chaos of production communications. Track orders, manage specs, and streamline follow-ups in one high-speed platform.
                         </p>
 
                         <div className="flex items-center gap-3 pt-2">
@@ -133,7 +133,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                         />
                     </div>
                     <div className="order-1 lg:order-2 space-y-6">
-                        <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight">Production in your pocket.</h2>
+                        <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight">Production tracking in your pocket.</h2>
                         <p className="text-lg text-gray-500 leading-relaxed">
                             Stay updated on the factory floor or during client meetings. Our mobile-first interface ensures you never miss a critical production milestone or follow-up.
                         </p>

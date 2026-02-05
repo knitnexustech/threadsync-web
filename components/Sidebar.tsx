@@ -10,9 +10,11 @@ interface SidebarProps {
     onSelectChannel: (channel: Channel, po: PurchaseOrder) => void;
     selectedChannelId?: string;
     onLogout: () => void;
+    installPrompt?: any;
+    onInstallApp?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, selectedChannelId, onLogout }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, selectedChannelId, onLogout, installPrompt, onInstallApp }) => {
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<'ORDERS' | 'PARTNERS'>('ORDERS');
 
@@ -110,6 +112,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
     // Toggle PO expansion
     const togglePO = (id: string) => {
         setExpandedPOs(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    // Notification State
+    const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+        'Notification' in window ? Notification.permission : 'denied'
+    );
+
+    const requestNotificationPermission = async () => {
+        if (!('Notification' in window)) return;
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
     };
 
     // Refs
@@ -272,7 +285,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                 <div className="px-1 py-1 flex justify-between items-center">
                     {/* Left: Brand Identity */}
                     <div className="flex items-center gap-2">
-                        <div className="h-12 w-28 flex items-center justify-center">
+                        <div className="h-12 w-28 p-2 flex items-center justify-center">
                             <img src="/logo_v2.png" alt="Kramiz" className="w-full h-full object-contain" />
                         </div>
                     </div>
@@ -426,6 +439,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     </button>
                     {showSettings && (
                         <div className="absolute bottom-12 left-0 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20 overflow-hidden">
+                            {installPrompt && (
+                                <button onClick={onInstallApp} className="w-full text-left px-4 py-3 hover:bg-green-50 text-sm text-[#008069] font-bold border-b border-gray-100">📲 Install App</button>
+                            )}
+                            {notificationPermission !== 'granted' && (
+                                <button
+                                    onClick={requestNotificationPermission}
+                                    className={`w-full text-left px-4 py-3 hover:bg-orange-50 text-sm font-bold border-b border-gray-100 ${notificationPermission === 'denied' ? 'text-orange-600' : 'text-blue-600'}`}
+                                >
+                                    {notificationPermission === 'denied' ? '⚠️ Notifications Blocked' : '🔔 Enable Notifications'}
+                                </button>
+                            )}
+                            {notificationPermission === 'denied' && (
+                                <div className="px-4 py-2 bg-orange-50 text-[10px] text-orange-700 leading-tight border-b border-gray-100 italic">
+                                    Click the 🔒 lock icon in your browser address bar to reset permissions.
+                                </div>
+                            )}
                             {canManageSuppliers && <button onClick={() => openModal('SUPPLIERS')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">📋 List of Suppliers</button>}
                             <button onClick={() => openModal('TEAM')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">👥 Team Members</button>
                             {currentUser.role === 'ADMIN' && (
