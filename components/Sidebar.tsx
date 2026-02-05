@@ -77,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
     const [showSettings, setShowSettings] = useState(false);
 
     const [modalState, setModalState] = useState<{
-        type: 'NONE' | 'NEW_PO' | 'ADD_CHANNEL' | 'SUPPLIERS' | 'TEAM' | 'EDIT_PO' | 'DELETE_PO' | 'CHANGE_PASSCODE' | 'EDIT_COMPANY';
+        type: 'NONE' | 'NEW_PO' | 'ADD_CHANNEL' | 'SUPPLIERS' | 'TEAM' | 'EDIT_PO' | 'DELETE_PO' | 'CHANGE_PASSCODE' | 'EDIT_COMPANY' | 'HOW_TO_INSTALL';
         data?: any;
     }>({ type: 'NONE' });
 
@@ -124,6 +124,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
         const permission = await Notification.requestPermission();
         setNotificationPermission(permission);
     };
+
+    // iOS Detection for PWA instructions
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isAndroid = /Android/.test(navigator.userAgent);
 
     // Refs
     const supplierComboboxRef = useRef<HTMLDivElement>(null);
@@ -439,9 +443,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     </button>
                     {showSettings && (
                         <div className="absolute bottom-12 left-0 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20 overflow-hidden">
-                            {installPrompt && (
+                            {installPrompt ? (
                                 <button onClick={onInstallApp} className="w-full text-left px-4 py-3 hover:bg-green-50 text-sm text-[#008069] font-bold border-b border-gray-100">📲 Install App</button>
-                            )}
+                            ) : (isIOS || isAndroid) ? (
+                                <button onClick={() => openModal('HOW_TO_INSTALL')} className="w-full text-left px-4 py-3 hover:bg-green-50 text-sm text-[#008069] font-bold border-b border-gray-100">📲 How to Install</button>
+                            ) : null}
                             {notificationPermission !== 'granted' && (
                                 <button
                                     onClick={requestNotificationPermission}
@@ -537,7 +543,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                         </div>
                     </div>
                 )}
-                <ul className="divide-y divide-gray-100 max-h-60 overflow-y-auto">{teamList.map(u => (<li key={u.id} className="py-3 flex justify-between items-center gap-3"><div className="flex flex-col min-w-0"><span className="font-medium text-sm text-gray-800 truncate">{u.name}</span><span className="text-xs text-gray-500 truncate">{u.phone}</span></div><span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-1 rounded shrink-0">{u.role.replace('_', ' ')}</span></li>))}</ul>
+                <ul className="divide-y divide-gray-100 max-h-60 overflow-y-auto">
+                    {teamList.map(u => (
+                        <li key={u.id} className="py-3 flex justify-between items-center gap-3">
+                            <div className="flex flex-col min-w-0">
+                                <span className="font-medium text-sm text-gray-800 truncate">{u.name}{u.id === currentUser.id && ' (You)'}</span>
+                                <span className="text-xs text-gray-500 truncate">{u.phone}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-1 rounded shrink-0">{u.role.replace('_', ' ')}</span>
+                                {currentUser.role === 'ADMIN' && u.id !== currentUser.id && (
+                                    <button
+                                        onClick={async () => {
+                                            if (confirm(`Are you sure you want to remove ${u.name}?`)) {
+                                                try {
+                                                    await api.deleteTeamMember(currentUser, u.id);
+                                                    setTeamList(await api.getTeamMembers(currentUser));
+                                                } catch (err: any) {
+                                                    alert(err.message);
+                                                }
+                                            }
+                                        }}
+                                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                        title="Remove Member"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
+                        </li>
+                    ))}
+                </ul>
             </Modal>
             <Modal isOpen={modalState.type === 'EDIT_PO'} onClose={closeModal} title="Edit Order Details" footer={<div className="flex gap-3 justify-stretch">{canDeletePO && <button onClick={() => { closeModal(); openModal('DELETE_PO', modalState.data); }} className="bg-red-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-700">Delete Order</button>}<button onClick={handleEditPO} className="bg-[#008069] text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#006a57]">Save Changes</button></div>}>
                 <div className="space-y-4">
@@ -566,6 +604,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                             onChange={e => setEditCompanyName(e.target.value)}
                         />
                         <p className="text-[10px] text-gray-400 mt-2">This change will be reflected across all vendor invites and workspace headers.</p>
+                    </div>
+                </div>
+            </Modal>
+            <Modal isOpen={modalState.type === 'HOW_TO_INSTALL'} onClose={closeModal} title={`Install on ${isIOS ? 'iPhone / iPad' : 'Android'}`}>
+                <div className="space-y-6 py-2">
+                    <p className="text-sm text-gray-600 leading-relaxed font-medium">To use Kramiz as a mobile app, follow these simple steps:</p>
+                    <div className="space-y-4">
+                        {isIOS ? (
+                            <>
+                                <div className="flex items-start gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-black flex-shrink-0">1</div>
+                                    <p className="text-sm text-gray-800">Tap the <strong className="text-blue-600">Share</strong> icon at the bottom (square with arrow).</p>
+                                </div>
+                                <div className="flex items-start gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-black flex-shrink-0">2</div>
+                                    <p className="text-sm text-gray-800">Scroll down and tap <strong className="text-gray-900">Add to Home Screen</strong>.</p>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex items-start gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-black flex-shrink-0">1</div>
+                                    <p className="text-sm text-gray-800">Tap the <strong className="text-gray-900">3-dots (⋮)</strong> or <strong className="text-gray-900">Menu (≡)</strong> icon in your browser.</p>
+                                </div>
+                                <div className="flex items-start gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-black flex-shrink-0">2</div>
+                                    <p className="text-sm text-gray-800">Select <strong className="text-[#008069]">Install App</strong> or <strong className="text-gray-900">Add to Home screen</strong>.</p>
+                                </div>
+                            </>
+                        )}
+                        <div className="flex items-start gap-4">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-black flex-shrink-0">3</div>
+                            <p className="text-sm text-gray-800">Tap <strong className="text-[#008069]">Add</strong> or <strong className="text-[#008069]">Install</strong> to finish.</p>
+                        </div>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-2xl border border-green-100 mt-4">
+                        <p className="text-xs text-[#008069] font-bold leading-relaxed">✨ Once added, Kramiz will work just like a native app on your phone!</p>
                     </div>
                 </div>
             </Modal>

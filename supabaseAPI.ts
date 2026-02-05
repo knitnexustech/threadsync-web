@@ -666,6 +666,27 @@ export const api = {
         return data as User[];
     },
 
+    deleteTeamMember: async (currentUser: User, userId: string) => {
+        if (currentUser.role !== 'ADMIN') throw new Error('Only admins can delete team members');
+        if (currentUser.id === userId) throw new Error('You cannot delete yourself');
+
+        // To "delete" but keep messages:
+        // We clear the company_id, name, and phone (using a unique placeholder for phone)
+        const { error } = await supabase
+            .from('users')
+            .update({
+                company_id: null,
+                name: 'Former Member',
+                phone: `DELETED_${userId}_${Date.now()}`,
+                passcode: 'DELETED'
+            })
+            .eq('id', userId)
+            .eq('company_id', currentUser.company_id);
+
+        if (error) throw new Error('Failed to delete team member');
+        return true;
+    },
+
     createVendor: async (name: string, phone: string, adminName: string) => {
         if (!/^\d{10}$/.test(phone)) throw new Error('10 digits phone required');
         const { data: existing } = await supabaseAdmin.from('users').select('id').eq('phone', phone).single();

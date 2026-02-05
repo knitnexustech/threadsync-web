@@ -1,290 +1,290 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface LandingPageProps {
     onNavigate: (page: 'LOGIN' | 'SIGNUP') => void;
 }
 
+const swipeFeatures = [
+    {
+        title: "Invite your Suppliers",
+        description: "Stop using messy group chats. Create private groups for your vendors and keep your business talk organized in one place.",
+        icon: (
+            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+        ),
+        bg: "bg-green-50 text-[#008069]"
+    },
+    {
+        title: "Upload Specification Files",
+        description: "Attach your tech packs, lab dips, and design files directly to the chat. Your suppliers can download them with one click.",
+        icon: (
+            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+        ),
+        bg: "bg-blue-50 text-blue-600"
+    },
+    {
+        title: "Install as an App",
+        description: "You don't need to visit the website every time. Add Kramiz to your Phone Home Screen and use it like a regular mobile app.",
+        icon: (
+            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+        ),
+        bg: "bg-purple-50 text-purple-600"
+    },
+    {
+        title: "Get Instant Notifications",
+        description: "Stay updated on the go. Receive a notification on your device the moment a supplier sends you a message or an update.",
+        icon: (
+            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+        ),
+        bg: "bg-orange-50 text-orange-600"
+    }
+];
+
 export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
+    const [activeFeature, setActiveFeature] = useState(0);
+
     return (
-        <div className="min-h-screen bg-white flex flex-col font-sans text-gray-900 overflow-x-hidden">
+        <div className="min-h-screen bg-white flex flex-col font-sans text-gray-900">
             {/* Navigation */}
             <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
                 <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
-                    <div className="flex items-center gap-2 mt-2">
-                        <div className="h-12 w-28 flex items-center justify-center">
-                            <img src="/logo_v2.png" alt="Kramiz" className="w-full h-full object-contain" />
-                        </div>
+                    <div className="h-10 w-28 flex items-center">
+                        <img src="/logo_v2.png" alt="Kramiz" className="h-full object-contain" />
                     </div>
-
-                    <div className="hidden md:flex gap-8 text-sm font-medium text-gray-500">
-                        <a href="#features" className="hover:text-[#008069] transition-colors">Features</a>
-                        <a href="#security" className="hover:text-[#008069] transition-colors">Security</a>
-                        <a href="#solutions" className="hover:text-[#008069] transition-colors">Solutions</a>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => onNavigate('LOGIN')}
-                            className="text-sm font-bold text-gray-700 hover:text-[#008069] px-4"
-                        >
-                            Sign In
-                        </button>
-                        <button
-                            onClick={() => onNavigate('SIGNUP')}
-                            className="px-6 py-2.5 bg-[#008069] text-white text-sm font-bold rounded-full hover:bg-[#006a57] shadow-lg shadow-green-900/10 transition-all active:scale-95"
-                        >
-                            Get Started
-                        </button>
+                    <div className="flex gap-4">
+                        <button onClick={() => onNavigate('LOGIN')} className="text-sm font-bold text-gray-600 hover:text-[#008069]">Sign In</button>
+                        <button onClick={() => onNavigate('SIGNUP')} className="px-5 py-2 bg-[#008069] text-white text-sm font-bold rounded-full hover:bg-[#006a57] transition-all">Get Started</button>
                     </div>
                 </div>
             </nav>
 
             {/* Hero Section */}
-            <section className="pt-40 pb-20 px-6">
-                <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
-                    <div className="flex-1 space-y-8 text-center lg:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full border border-green-100">
-                            <span className="flex h-2 w-2 rounded-full bg-[#008069] animate-pulse"></span>
-                            <span className="text-[10px] font-black text-[#008069] uppercase tracking-widest">Version 2.0 Live</span>
-                        </div>
-
-                        <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] uppercase">
-                            The Operating System for <br />
-                            <span className="text-[#008069] font-bold tracking-widest">Follow-ups</span>
-                        </h1>
-
-                        <p className="text-xl text-gray-500 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-                            <></>Kramiz automates the chaos of production communications. Track orders, manage specs, and streamline follow-ups in one high-speed platform.
-                        </p>
-
-                        <div className="flex items-center gap-3 pt-2">
-                            <div className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-indigo-100 flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></span>
-                                AI Features Coming Soon
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-4">
-                            <button
-                                onClick={() => onNavigate('SIGNUP')}
-                                className="px-8 py-4 bg-[#008069] text-white rounded-xl font-bold text-lg shadow-xl shadow-green-900/20 hover:bg-[#006a57] transition-all hover:-translate-y-1"
-                            >
-                                Start for free
-                            </button>
-                            <button
-                                className="px-8 py-4 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-lg hover:border-gray-400 transition-all flex items-center justify-center gap-2"
-                            >
-                                <svg className="w-6 h-6 text-[#008069]" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                                </svg>
-                                Watch Product Tour
-                            </button>
-                        </div>
+            <section className="pt-32 pb-16 px-6">
+                <div className="max-w-5xl mx-auto text-center space-y-8">
+                    <div className="inline-block px-4 py-1.5 bg-green-50 text-[#008069] rounded-full text-[10px] font-black uppercase tracking-widest border border-green-100">
+                        The simple way to track production
                     </div>
-
-                    <div className="flex-1 relative animate-in fade-in zoom-in duration-1000">
-                        <div className="absolute inset-0 bg-green-500/10 blur-[120px] rounded-full"></div>
-                        <img
-                            src="/hero-dashboard.png"
-                            alt="Kramiz Dashboard"
-                            className="relative w-full rounded-2xl shadow-2xl border border-gray-100"
-                        />
-                    </div>
-                </div>
-            </section>
-
-            {/* Feature Showcase Section - Real UI */}
-            <section className="py-24 bg-white border-y border-gray-100">
-                <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-24 items-center">
-                    <div className="space-y-6">
-                        <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight">Your team, <br /><span className="text-[#008069]">aligned in real-time.</span></h2>
-                        <p className="text-lg text-gray-500 leading-relaxed">
-                            No more messy group chats or missing emails. Kramiz provides a structured workspace where every role—from Admin to Vendor—has exactly the visibility they need.
-                        </p>
-                        <ul className="space-y-4">
-                            {['Granular role-based access', 'Secure one-click member invites', 'Instant supplier onboarding'].map((item, i) => (
-                                <li key={i} className="flex items-center gap-3 font-bold text-gray-700">
-                                    <div className="h-5 w-5 bg-green-100 rounded-full flex items-center justify-center">
-                                        <svg className="w-3 h-3 text-[#008069]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                    </div>
-                                    {item}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                    <div className="relative group">
-                        <div className="absolute inset-0 bg-[#008069]/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full"></div>
-                        <img
-                            src="/team-management.png"
-                            className="relative w-full rounded-2xl shadow-xl border border-gray-100 transition-transform group-hover:-translate-y-2"
-                            alt="Kramiz Team Interface"
-                        />
-                    </div>
-                </div>
-
-                <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-24 items-center mt-32">
-                    <div className="order-2 lg:order-1 relative group">
-                        <div className="absolute inset-0 bg-[#008069]/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full"></div>
-                        <img
-                            src="/mobile-sync.png"
-                            className="relative w-full max-w-sm mx-auto rounded-[3rem] shadow-2xl transition-transform group-hover:scale-105"
-                            alt="Kramiz Mobile App"
-                        />
-                    </div>
-                    <div className="order-1 lg:order-2 space-y-6">
-                        <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight">Production tracking in your pocket.</h2>
-                        <p className="text-lg text-gray-500 leading-relaxed">
-                            Stay updated on the factory floor or during client meetings. Our mobile-first interface ensures you never miss a critical production milestone or follow-up.
-                        </p>
-                        <div className="grid grid-cols-2 gap-4 pt-4">
-                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <div className="text-2xl font-bold text-[#008069]">99.9%</div>
-                                <div className="text-xs text-gray-500 uppercase font-black tracking-widest mt-1 text-nowrap">Uptime Guaranteed</div>
-                            </div>
-                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <div className="text-2xl font-bold text-[#008069]">2s</div>
-                                <div className="text-xs text-gray-500 uppercase font-black tracking-widest mt-1 text-nowrap">Real-time Sync</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Features Grid */}
-            <section id="features" className="py-24 bg-gray-50/10 relative overflow-hidden">
-                <div className="max-w-7xl mx-auto px-6">
-                    <div className="text-center space-y-4 mb-20">
-                        <h2 className="text-3xl md:text-5xl font-bold">Built for the simplicity of order tracking</h2>
-                        <p className="text-gray-500 max-w-xl mx-auto font-medium">Everything you need to move from order to shipment with ease.</p>
-                    </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {/* Real-time Channels */}
-                    <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="h-12 w-12 bg-green-50 rounded-xl flex items-center justify-center text-[#008069] mb-6 group-hover:bg-[#008069] group-hover:text-white transition-colors">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                        </div>
-                        <h3 className="text-xl font-bold mb-3">Dedicated Groups</h3>
-                        <p className="text-gray-500 leading-relaxed text-sm">
-                            Real-time collaboration. Dedicated groups for your supplier (like Knitting, Dyeing, Printing, etc) ensuring zero communication leakage.
-                        </p>
-                    </div>
-
-                    {/* Smart Tracking */}
-                    <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 mb-6 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                            </svg>
-                        </div>
-                        <h3 className="text-xl font-bold mb-3">Order Orchestration</h3>
-                        <p className="text-gray-500 leading-relaxed text-sm">
-                            Track complex Orders with granular style updates. Instant visibility into vendor progress and bottleneck detection.
-                        </p>
-                    </div>
-
-                    {/* Asset Management */}
-                    <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="h-12 w-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 mb-6 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                            </svg>
-                        </div>
-                        <h3 className="text-xl font-bold mb-3">Central Asset Hub</h3>
-                        <p className="text-gray-500 leading-relaxed text-sm">
-                            One source of truth for all specs, lab dips, and follow-ups. Direct drag-and-drop uploads within any active channel.
-                        </p>
-                    </div>
-
-                    {/* Vendor Onboarding */}
-                    <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="h-12 w-12 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600 mb-6 group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                        </div>
-                        <h3 className="text-xl font-bold mb-3">1-Click Onboarding</h3>
-                        <p className="text-gray-500 leading-relaxed text-sm">
-                            Add partners instantly. Generate WhatsApp invite links with pre-set passcodes for immediate vendor participation and sync.
-                        </p>
-                    </div>
-
-                    {/* Enterprise Security */}
-                    <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="h-12 w-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04Customizable security layers 0A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                            </svg>
-                        </div>
-                        <h3 className="text-xl font-bold mb-3">RBAC Security</h3>
-                        <p className="text-gray-500 leading-relaxed text-sm">
-                            Granular permissions for Admins, Merchandisers, and Vendors. Secure your proprietary designs with zero-trust protocols.
-                        </p>
-                    </div>
-
-                    {/* AI Engine */}
-                    <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden">
-                        <div className="absolute top-0 right-0 px-3 py-1 bg-indigo-600 text-white text-[9px] font-black uppercase tracking-tighter rounded-bl-xl shadow-sm">
-                            Coming Soon
-                        </div>
-                        <div className="h-12 w-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.989-2.386l-.548-.547z" />
-                            </svg>
-                        </div>
-                        <h3 className="text-xl font-bold mb-3">AI-Driven Insights</h3>
-                        <p className="text-gray-500 leading-relaxed text-sm">
-                            Predictive delay alerts, automated follow-up summaries, and smart scheduling. Let AI manage the reminders while you focus on production.
-                        </p>
-                    </div>
-                </div>
-            </section>
-
-            {/* CTA Section */}
-            <section className="py-24 px-6">
-                <div className="max-w-5xl mx-auto bg-gray-900 rounded-[3rem] p-12 md:p-20 text-center space-y-8 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-green-500/10 blur-[100px]"></div>
-                    <h2 className="text-4xl md:text-5xl font-bold text-white relative z-10">
-                        Ready to synchronize your <br /> production line?
-                    </h2>
-                    <p className="text-gray-400 max-w-lg mx-auto relative z-10">
-                        Join the elite manufacturers using Kramiz to eliminate communication gaps and ship 30% faster.
+                    <h1 className="text-5xl md:text-7xl font-black leading-[1.1] text-gray-900 uppercase">
+                        Stop the <span className="text-[#008069]">Follow-up</span> <br /> Chaos today.
+                    </h1>
+                    <p className="text-lg md:text-xl text-gray-500 max-w-2xl mx-auto font-medium leading-relaxed">
+                        Kramiz is a simple app that helps manufacturers and vendors talk to each other. Track your orders, share files, and hit your deadlines without the mess.
                     </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center pt-6 relative z-10">
-                        <button
-                            onClick={() => onNavigate('SIGNUP')}
-                            className="px-10 py-4 bg-[#008069] text-white rounded-xl font-black shadow-lg shadow-green-900/50 hover:bg-[#006a57] transition-all active:scale-95"
-                        >
-                            Start Free Trial
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+                        <button onClick={() => onNavigate('SIGNUP')} className="px-8 py-4 bg-[#008069] text-white rounded-2xl font-bold text-lg shadow-xl shadow-green-900/20 hover:scale-105 active:scale-95 transition-all">
+                            Create Free Account
                         </button>
-                        <button className="px-10 py-4 bg-transparent text-white border border-gray-700 rounded-xl font-bold hover:bg-gray-800 transition-all">
-                            Contact Sales
+                        <button onClick={() => onNavigate('LOGIN')} className="px-8 py-4 bg-gray-50 text-gray-700 rounded-2xl font-bold text-lg border border-gray-200 hover:bg-white hover:border-gray-400 transition-all">
+                            Login Member
                         </button>
                     </div>
+                </div>
+            </section>
+
+            {/* Problem vs Solution Section */}
+            <section className="py-20 bg-white border-b border-gray-100">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl font-extrabold text-gray-900 mb-4">Is your production stuck in WhatsApp?</h2>
+                        <p className="text-gray-500 font-medium max-w-2xl mx-auto text-lg">
+                            You have 50 active orders involved with 10 different vendors. And 1000 unread messages mixed with personal chats.
+                        </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                        <div className="bg-gray-50 p-8 rounded-3xl border border-gray-200 hover:border-red-200 transition-all duration-300">
+                            <div className="text-xs font-black text-red-500 uppercase tracking-widest mb-4">The Old Way</div>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-4">Chaos & Panic</h3>
+                            <ul className="space-y-4">
+                                <li className="flex items-center gap-3 text-gray-500 font-medium">
+                                    <div className="h-6 w-6 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-xs font-bold">✕</div>
+                                    Lost in endless group chats
+                                </li>
+                                <li className="flex items-center gap-3 text-gray-500 font-medium">
+                                    <div className="h-6 w-6 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-xs font-bold">✕</div>
+                                    "I didn't see that message"
+                                </li>
+                                <li className="flex items-center gap-3 text-gray-500 font-medium">
+                                    <div className="h-6 w-6 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-xs font-bold">✕</div>
+                                    Files expired or lost
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div className="bg-white p-8 rounded-3xl border-2 border-[#008069] shadow-xl shadow-green-900/5 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-green-50 rounded-bl-full -mr-10 -mt-10"></div>
+                            <div className="text-xs font-black text-[#008069] uppercase tracking-widest mb-4 relative z-10">The Kramiz Way</div>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-4 relative z-10">Organized Speed</h3>
+                            <ul className="space-y-4 relative z-10">
+                                <li className="flex items-center gap-3 text-gray-800 font-bold">
+                                    <div className="h-6 w-6 rounded-full bg-[#008069] flex items-center justify-center text-white text-xs font-bold">✓</div>
+                                    One group per order
+                                </li>
+                                <li className="flex items-center gap-3 text-gray-800 font-bold">
+                                    <div className="h-6 w-6 rounded-full bg-[#008069] flex items-center justify-center text-white text-xs font-bold">✓</div>
+                                    Separate from personal chats
+                                </li>
+                                <li className="flex items-center gap-3 text-gray-800 font-bold">
+                                    <div className="h-6 w-6 rounded-full bg-[#008069] flex items-center justify-center text-white text-xs font-bold">✓</div>
+                                    Files saved forever
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Feature Swipe Section */}
+            <section className="py-20 bg-gray-50 border-y border-gray-100">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-extrabold text-gray-900">Core Features</h2>
+                        <p className="text-gray-500 mt-2 font-medium">Simple tools built for production teams.</p>
+                    </div>
+
+                    <div className="max-w-3xl mx-auto">
+                        <div className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-gray-100 flex flex-col items-center text-center space-y-6 min-h-[380px] justify-center transition-all duration-500">
+                            <div className={`p-6 rounded-2xl ${swipeFeatures[activeFeature].bg} animate-in zoom-in duration-300`}>
+                                {swipeFeatures[activeFeature].icon}
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-900">{swipeFeatures[activeFeature].title}</h3>
+                            <p className="text-gray-500 text-lg leading-relaxed font-medium">
+                                {swipeFeatures[activeFeature].description}
+                            </p>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="flex justify-center items-center gap-6 mt-10">
+                            <button
+                                onClick={() => setActiveFeature((prev) => (prev - 1 + swipeFeatures.length) % swipeFeatures.length)}
+                                className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-white hover:border-[#008069] hover:text-[#008069] transition-all bg-white shadow-sm"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                            </button>
+                            <div className="flex gap-2">
+                                {swipeFeatures.map((_, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => setActiveFeature(i)}
+                                        className={`h-2 rounded-full transition-all ${i === activeFeature ? 'w-8 bg-[#008069]' : 'w-2 bg-gray-200'}`}
+                                    />
+                                ))}
+                            </div>
+                            <button
+                                onClick={() => setActiveFeature((prev) => (prev + 1) % swipeFeatures.length)}
+                                className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-white hover:border-[#008069] hover:text-[#008069] transition-all bg-white shadow-sm"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* How it Works Section */}
+            <section className="py-24 px-6 bg-white">
+                <div className="max-w-7xl mx-auto">
+                    <div className="text-center mb-16">
+                        <div className="inline-block px-4 py-1.5 bg-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">
+                            Start in 3 Minutes
+                        </div>
+                        <h2 className="text-3xl font-extrabold text-gray-900">How it Works</h2>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-8 relative">
+                        {/* Connecting Line (Desktop) */}
+                        <div className="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-gray-100 z-0"></div>
+
+                        {/* Step 1 */}
+                        <div className="relative z-10 flex flex-col items-center text-center">
+                            <div className="w-24 h-24 bg-white border-4 border-gray-50 rounded-full flex items-center justify-center text-2xl font-black text-gray-300 mb-6 shadow-sm">
+                                01
+                            </div>
+                            <h3 className="text-xl font-bold mb-3">Create an Order</h3>
+                            <p className="text-gray-500 font-medium">Add your Style Number and PO Number to create a secure workspace.</p>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="relative z-10 flex flex-col items-center text-center">
+                            <div className="w-24 h-24 bg-white border-4 border-[#008069] rounded-full flex items-center justify-center text-2xl font-black text-[#008069] mb-6 shadow-lg shadow-green-900/10">
+                                02
+                            </div>
+                            <h3 className="text-xl font-bold mb-3">Invite Vendor</h3>
+                            <p className="text-gray-500 font-medium">Add your supplier's phone number. They get an invite to join instantly.</p>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="relative z-10 flex flex-col items-center text-center">
+                            <div className="w-24 h-24 bg-white border-4 border-gray-50 rounded-full flex items-center justify-center text-2xl font-black text-gray-300 mb-6 shadow-sm">
+                                03
+                            </div>
+                            <h3 className="text-xl font-bold mb-3">Start Tracking</h3>
+                            <p className="text-gray-500 font-medium">Share files, chat, and watch the status move from Pending to Completed.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Detailed Info Grid */}
+            <section className="py-24 px-6">
+                <div className="max-w-7xl mx-auto">
+                    <div className="grid md:grid-cols-3 gap-12">
+                        <div className="space-y-4">
+                            <div className="text-2xl font-black text-[#008069]">01.</div>
+                            <h4 className="text-xl font-bold uppercase tracking-tight">For Admins</h4>
+                            <p className="text-gray-500 font-medium leading-relaxed">
+                                Manage your entire team from one place. Delete old members, add new users, and see every order in your factory with zero effort.
+                            </p>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="text-2xl font-black text-[#008069]">02.</div>
+                            <h4 className="text-xl font-bold uppercase tracking-tight">For Vendors</h4>
+                            <p className="text-gray-500 font-medium leading-relaxed">
+                                Update your customer on order status without multiple phone calls. Everything is synced in real-time so everyone is happy.
+                            </p>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="text-2xl font-black text-[#008069]">03.</div>
+                            <h4 className="text-xl font-bold uppercase tracking-tight">For Managers</h4>
+                            <p className="text-gray-500 font-medium leading-relaxed">
+                                Find bottlenecks before they happen. Track exactly how many days an order has been pending and fix issues immediately.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Call to Action */}
+            <section className="py-20 px-6">
+                <div className="max-w-4xl mx-auto bg-gray-900 rounded-[2.5rem] p-12 text-center text-white relative overflow-hidden shadow-2xl">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-[#008069]/20 blur-[100px] rounded-full"></div>
+                    <h2 className="text-3xl md:text-5xl font-extrabold mb-6 relative z-10">Start Tracking Smarter.</h2>
+                    <p className="text-gray-400 text-lg mb-10 relative z-10 max-w-lg mx-auto">Join the production teams that save 10 hours a week on follow-ups.</p>
+                    <button onClick={() => onNavigate('SIGNUP')} className="px-10 py-5 bg-[#008069] text-white rounded-2xl font-bold text-xl hover:bg-[#006a57] relative z-10 active:scale-95 transition-all">
+                        Get Started Free
+                    </button>
                 </div>
             </section>
 
             {/* Footer */}
-            <footer className="py-12 border-t border-gray-100">
-                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
-                    <div className="flex items-center gap-2">
-                        <div className="h-12 w-28 flex items-center justify-center">
-                            <img src="/logo_v2.png" alt="Kramiz" className="w-full h-full object-contain" />
-                        </div>
-                    </div>
-
-                    <div className="flex gap-8 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                        <a href="#" className="hover:text-gray-900 transition-colors">Privacy Policy</a>
-                        <a href="#" className="hover:text-gray-900 transition-colors">Terms of Service</a>
-                        <a href="#" className="hover:text-gray-900 transition-colors">Security Protocols</a>
-                    </div>
-
-                    <p className="text-sm text-gray-400">© 2024 Kramiz OS. Follow-ups Simplified.</p>
+            <footer className="py-12 border-t border-gray-100 flex flex-col items-center space-y-6">
+                <div className="h-10 w-28 opacity-40 grayscale">
+                    <img src="/logo_v2.png" alt="Kramiz" className="h-full object-contain" />
                 </div>
+                <div className="flex gap-8 text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
+                    <a href="#" className="hover:text-gray-900">Privacy</a>
+                    <a href="#" className="hover:text-gray-900">Security</a>
+                    <a href="#" className="hover:text-gray-900">Contact</a>
+                </div>
+                <p className="text-xs text-gray-400">© 2024 Kramiz. Follow-ups Simplified.</p>
             </footer>
         </div>
     );
