@@ -287,7 +287,11 @@ export const api = {
         return (data || []).map(channel => ({
             ...channel,
             specs: channel.channel_specs || [],
-            files: channel.channel_files || [],
+            files: (channel.channel_files || []).map((f: any) => ({
+                ...f,
+                uploadedBy: f.uploaded_by,
+                uploadedAt: f.uploaded_at
+            })),
             last_read_at: (channel.channel_members?.[0] as any)?.last_read_at
         })) as Channel[];
     },
@@ -308,7 +312,11 @@ export const api = {
         return (data || []).map(channel => ({
             ...channel,
             specs: channel.channel_specs || [],
-            files: channel.channel_files || [],
+            files: (channel.channel_files || []).map((f: any) => ({
+                ...f,
+                uploadedBy: f.uploaded_by,
+                uploadedAt: f.uploaded_at
+            })),
             last_read_at: (channel.channel_members?.[0] as any)?.last_read_at
         })) as Channel[];
     },
@@ -603,7 +611,11 @@ export const api = {
             .single();
 
         if (error) throw new Error('Failed to add file: ' + error.message);
-        return { ...data, uploadedAt: data.uploaded_at } as AttachedFile;
+        return {
+            ...data,
+            uploadedBy: data.uploaded_by,
+            uploadedAt: data.uploaded_at
+        } as AttachedFile;
     },
 
     deleteFileFromChannel: async (channelId: string, fileId: string) => {
