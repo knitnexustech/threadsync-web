@@ -36,17 +36,27 @@ const App: React.FC = () => {
         }
     };
 
-    // Restore session on app load
+    // Restore session on app load - Run ONCE on mount
     useEffect(() => {
-        const savedUser = loadSession();
-        if (savedUser) {
-            setUser(savedUser);
-            setView('APP');
-            // Trigger sequence for returning users after a small stability delay
-            setTimeout(showOnboardingPrompts, 2000);
-        }
-        setIsRestoringSession(false);
-    }, [deferredPrompt]); // Depend on deferredPrompt to ensure it's captured
+        const initApp = async () => {
+            try {
+                const savedUser = loadSession();
+                if (savedUser) {
+                    setUser(savedUser);
+                    setView('APP');
+                    // Small delay to let the app settle before asking for permissions
+                    setTimeout(showOnboardingPrompts, 3000);
+                }
+            } catch (err) {
+                console.error("Session restoration failed:", err);
+                clearSession();
+            } finally {
+                setIsRestoringSession(false);
+            }
+        };
+
+        initApp();
+    }, []); // Only run once on mount
 
     // Listen for install prompt
     useEffect(() => {
