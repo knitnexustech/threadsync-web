@@ -96,7 +96,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     // Realtime Subscription
     useEffect(() => {
         const channelSubscription = supabase
-            .channel(`messages:${channel.id}`)
+            .channel(`room:${channel.id}`)
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
@@ -129,8 +129,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             })
             .subscribe();
 
+        // Auto-refresh when user focuses back on the tab (fixes "stuck" PWA state)
+        const handleFocus = () => {
+            queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
+        };
+        window.addEventListener('focus', handleFocus);
+
         return () => {
             supabase.removeChannel(channelSubscription);
+            window.removeEventListener('focus', handleFocus);
         };
     }, [channel.id, channel.name, currentUser.id, queryClient]);
 
@@ -138,7 +145,33 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     const sendMessageMutation = useMutation({
         mutationFn: ({ content, isSystem }: { content: string, isSystem?: boolean }) =>
             api.sendMessage(currentUser, channel.id, content, isSystem),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['messages', channel.id] })
+        // OPTIMISTIC UPDATE: Show message immediately
+        onMutate: async ({ content }) => {
+            await queryClient.cancelQueries({ queryKey: ['messages', channel.id] });
+            const previousMessages = queryClient.getQueryData<Message[]>(['messages', channel.id]);
+
+            const optimisticMsg: Message = {
+                id: Math.random().toString(),
+                channel_id: channel.id,
+                user_id: currentUser.id,
+                content: content,
+                is_system_update: false,
+                created_at: new Date().toISOString(),
+                user: currentUser
+            } as any;
+
+            queryClient.setQueryData(['messages', channel.id], (old: Message[] | undefined) => [...(old || []), optimisticMsg]);
+
+            return { previousMessages };
+        },
+        onError: (err, variables, context: any) => {
+            if (context?.previousMessages) {
+                queryClient.setQueryData(['messages', channel.id], context.previousMessages);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
+        }
     });
 
     const updateStatusMutation = useMutation({
