@@ -228,6 +228,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
         try {
             await api.createTeamMember(currentUser, newTeamMember.name, newTeamMember.phone, newTeamMember.passcode, newTeamMember.role);
             setTeamList(await api.getTeamMembers(currentUser));
+
+            const appLink = window.location.origin;
+            const message = `Hello ${newTeamMember.name},\n\nYou have been added as a ${newTeamMember.role.replace('_', ' ')} to the Kramiz production tracking app: ${appLink}\n\nYour login details are:\nPhone: ${newTeamMember.phone}\nPasscode: ${newTeamMember.passcode}`;
+            const encodedMessage = encodeURIComponent(message);
+            const waLink = `https://wa.me/91${newTeamMember.phone}?text=${encodedMessage}`;
+            setInviteLink(waLink);
+
             setNewTeamMember({ name: '', phone: '', passcode: '', role: 'JUNIOR_MERCHANDISER' });
         } catch (err: any) { alert(err.message); }
     };
@@ -486,12 +493,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                             ) : (isIOS || isAndroid) ? (
                                 <button onClick={() => openModal('HOW_TO_INSTALL')} className="w-full text-left px-4 py-3 hover:bg-green-50 text-sm text-[#008069] font-bold border-b border-gray-100">📲 How to Install</button>
                             ) : null}
-                            {notificationPermission !== 'granted' && (
+                            {notificationPermission !== 'granted' ? (
                                 <button
                                     onClick={requestNotificationPermission}
                                     className={`w-full text-left px-4 py-3 hover:bg-orange-50 text-sm font-bold border-b border-gray-100 ${notificationPermission === 'denied' ? 'text-orange-600' : 'text-blue-600'}`}
                                 >
                                     {notificationPermission === 'denied' ? '⚠️ Notifications Blocked' : '🔔 Enable Notifications'}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={async () => {
+                                        if ('serviceWorker' in navigator) {
+                                            const registration = await navigator.serviceWorker.ready;
+                                            registration.showNotification("Kramiz Test", {
+                                                body: "Notifications are working on this device! ✅",
+                                                icon: '/Kramiz%20app%20icon.png',
+                                                badge: '/favicon.png'
+                                            } as any);
+                                        }
+                                    }}
+                                    className="w-full text-left px-4 py-3 hover:bg-green-50 text-sm text-[#008069] font-bold border-b border-gray-100"
+                                >
+                                    ✅ Test Notification
                                 </button>
                             )}
                             {notificationPermission === 'denied' && (
@@ -582,6 +605,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                             <select className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newTeamMember.role} onChange={e => setNewTeamMember({ ...newTeamMember, role: e.target.value as any })}><option value="JUNIOR_MERCHANDISER">Junior Merchandiser</option><option value="SENIOR_MERCHANDISER">Senior Merchandiser</option><option value="JUNIOR_MANAGER">Junior Manager</option><option value="SENIOR_MANAGER">Senior Manager</option><option value="ADMIN">Admin</option></select>
                             <button onClick={handleAddTeamMember} className="w-full bg-[#008069] hover:bg-[#006a57] text-white text-sm font-bold py-2 rounded shadow-sm">+ Send Invite</button>
                         </div>
+                    </div>
+                )}
+                {inviteLink && (
+                    <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex items-center gap-2 mb-2"><span className="text-sm font-bold text-green-800">Member Added!</span></div>
+                        <p className="text-xs text-green-700 mb-3">Share login details with the team member:</p>
+                        <a href={inviteLink} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-bold py-2 rounded shadow-sm">Share on WhatsApp</a>
+                        <button onClick={() => setInviteLink(null)} className="w-full mt-2 text-[10px] text-gray-400 hover:text-gray-600 uppercase font-bold tracking-wider">Dismiss</button>
                     </div>
                 )}
                 <ul className="divide-y divide-gray-100 max-h-60 overflow-y-auto">

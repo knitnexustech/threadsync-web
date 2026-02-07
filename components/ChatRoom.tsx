@@ -66,15 +66,31 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         setCurrentStatus(channel.status);
     }, [channel.id, channel.name, channel.status]);
 
-    // Help show notification
-    const showNotification = (title: string, body: string) => {
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(title, {
-                body,
-                icon: '/app-icon.png',
-                badge: '/app-icon.png'
-            });
+    // Help show notification (Fixed for Mobile Support)
+    const showNotification = async (title: string, body: string) => {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+        // Try Service Worker first (Required for Mobile/PWA)
+        if ('serviceWorker' in navigator) {
+            const registration = await navigator.serviceWorker.ready;
+            if (registration) {
+                registration.showNotification(title, {
+                    body,
+                    icon: '/Kramiz%20app%20icon.png',
+                    badge: '/favicon.png',
+                    vibrate: [100, 50, 100],
+                    data: { url: window.location.href }
+                } as any);
+                return;
+            }
         }
+
+        // Fallback or Desktop only
+        new Notification(title, {
+            body,
+            icon: '/Kramiz%20app%20icon.png',
+            badge: '/favicon.png'
+        });
     };
 
     // Realtime Subscription

@@ -28,11 +28,11 @@ const App: React.FC = () => {
             });
         }
 
-        // 2. Wait 8 seconds before showing Install Prompt (as requested 7-10s)
+        // 2. Wait 30 seconds before showing Install Prompt (as requested 25-30s)
         if (deferredPrompt) {
             setTimeout(() => {
                 setShowInstallPopup(true);
-            }, 8000);
+            }, 30000);
         }
     };
 
