@@ -129,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                 const registration = await navigator.serviceWorker.ready;
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
-                    applicationServerKey: 'BGASVKYBPyYRNGxG7Q_WAShXSM_CdrE3MtqYSlQcyIpGo9BnGsIZXLvEafneBYJkeA-xDZ7RtfYMf6kQxiIsNO0'
+                    applicationServerKey: 'BMfp5dpSpDKfeFxwdTGg4FTa4LCXLS_hhmZxp5mB2Ym3hks6JdohSOQCJkYQJb63QdOWUkIgbzmuzdGsDQLFodw'
                 });
 
                 await api.savePushSubscription(currentUser.id, subscription);
