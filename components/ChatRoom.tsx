@@ -104,26 +104,34 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                 filter: `channel_id=eq.${channel.id}`
             }, (payload) => {
                 const newMsg = payload.new as Message;
-                // Don't show notification for own messages or system updates
+
+                // 1. Instantly update the local cache for immediate display
+                queryClient.setQueryData(['messages', channel.id], (old: Message[] | undefined) => {
+                    if (!old) return [newMsg];
+                    // Avoid duplicate if it's our own message we already pushed optimistically
+                    if (old.some(m => m.id === newMsg.id)) return old;
+                    return [...old, newMsg];
+                });
+
+                // 2. Show notification
                 if (newMsg.user_id !== currentUser.id && !newMsg.is_system_update) {
                     showNotification(`New Message in ${channel.name}`, newMsg.content);
                 }
-                queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
             })
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
                 table: 'messages',
                 filter: `channel_id=eq.${channel.id}`
-            }, (payload) => {
-                // For updates/deletes, just refresh
-                if (payload.eventType !== 'INSERT') {
-                    queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
-                }
+            }, () => {
+                // For updates/deletes, force a clean refresh
+                queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
             })
             .subscribe();
 
-        return () => { supabase.removeChannel(channelSubscription); };
+        return () => {
+            supabase.removeChannel(channelSubscription);
+        };
     }, [channel.id, channel.name, currentUser.id, queryClient]);
 
     // Mutations
