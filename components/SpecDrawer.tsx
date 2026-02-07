@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Channel, AttachedFile, User } from '../types';
 import { api } from '../supabaseAPI';
+import { compressImage } from '../imageUtils';
 
 interface SpecDrawerProps {
     channel: Channel;
@@ -38,8 +39,11 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
 
             try {
                 for (const file of selectedFiles) {
+                    // Compress if image
+                    const fileToUpload = await compressImage(file);
+
                     // 1. Upload to Supabase Storage
-                    const publicUrl = await api.uploadFile(file);
+                    const publicUrl = await api.uploadFile(fileToUpload as File);
 
                     // 2. Save reference to Database
                     const newFile = await api.addFileToChannel(currentUser, channel.id, file.name, publicUrl);

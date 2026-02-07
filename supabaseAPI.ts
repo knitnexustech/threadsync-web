@@ -802,5 +802,16 @@ export const api = {
             .eq('id', companyId);
 
         if (error) throw new Error('Failed to delete organization: ' + error.message);
+    },
+
+    savePushSubscription: async (userId: string, subscription: PushSubscription) => {
+        const { error } = await supabase
+            .from('push_subscriptions')
+            .upsert({
+                user_id: userId,
+                subscription_json: subscription.toJSON()
+            }, { onConflict: 'user_id, subscription_json' });
+
+        if (error) throw new Error('Failed to save push subscription: ' + error.message);
     }
 };

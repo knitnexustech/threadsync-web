@@ -123,6 +123,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
         if (!('Notification' in window)) return;
         const permission = await Notification.requestPermission();
         setNotificationPermission(permission);
+
+        if (permission === 'granted' && 'serviceWorker' in navigator) {
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: 'BGASVKYBPyYRNGxG7Q_WAShXSM_CdrE3MtqYSlQcyIpGo9BnGsIZXLvEafneBYJkeA-xDZ7RtfYMf6kQxiIsNO0'
+                });
+
+                await api.savePushSubscription(currentUser.id, subscription);
+                console.log('Background Push Subscribed!');
+            } catch (err) {
+                console.error('Failed to subscribe to push:', err);
+            }
+        }
     };
 
     // iOS Detection for PWA instructions

@@ -4,6 +4,7 @@ import { User, Channel, PurchaseOrder, Message, hasPermission } from '../types';
 import { api } from '../supabaseAPI';
 import { SpecDrawer } from './SpecDrawer';
 import { Modal } from './Modal';
+import { compressImage } from '../imageUtils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
 
@@ -187,7 +188,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
 
             try {
                 for (const file of selectedFiles) {
-                    const publicUrl = await api.uploadFile(file);
+                    // Compress if image
+                    const fileToUpload = await compressImage(file);
+
+                    const publicUrl = await api.uploadFile(fileToUpload as File);
                     let msgContent = file.type.startsWith('image/') ? `[IMAGE] ${publicUrl} | ${file.name}` : `[FILE] ${publicUrl} | ${file.name}`;
                     sendMessageMutation.mutate({ content: msgContent });
                 }

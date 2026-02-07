@@ -16,17 +16,37 @@ const App: React.FC = () => {
     const [view, setView] = useState<ViewState>('LANDING');
     const [isRestoringSession, setIsRestoringSession] = useState(true);
 
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [showInstallPopup, setShowInstallPopup] = useState(false);
+
+    // Unified function to handle onboarding prompts (Notifications -> Install)
+    const showOnboardingPrompts = () => {
+        // 1. Ask for notification permission first
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().then(permission => {
+                console.log('Notification permission:', permission);
+            });
+        }
+
+        // 2. Wait 8 seconds before showing Install Prompt (as requested 7-10s)
+        if (deferredPrompt) {
+            setTimeout(() => {
+                setShowInstallPopup(true);
+            }, 8000);
+        }
+    };
+
     // Restore session on app load
     useEffect(() => {
         const savedUser = loadSession();
         if (savedUser) {
             setUser(savedUser);
             setView('APP');
+            // Trigger sequence for returning users after a small stability delay
+            setTimeout(showOnboardingPrompts, 2000);
         }
         setIsRestoringSession(false);
-    }, []);
-
-    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    }, [deferredPrompt]); // Depend on deferredPrompt to ensure it's captured
 
     // Listen for install prompt
     useEffect(() => {
@@ -36,24 +56,12 @@ const App: React.FC = () => {
         });
     }, []);
 
-    const [showInstallPopup, setShowInstallPopup] = useState(false);
-
     const handleLogin = (loggedInUser: User, rememberMe: boolean) => {
         saveSession(loggedInUser, rememberMe); // Save to storage
         setUser(loggedInUser);
         setView('APP');
 
-        // Ask for notification permission
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-
-        // Proactively invite to install after a short delay
-        if (deferredPrompt) {
-            setTimeout(() => {
-                setShowInstallPopup(true);
-            }, 1500); // 1.5s delay for a smoother experience
-        }
+        showOnboardingPrompts();
     };
 
     const handleLogout = () => {
