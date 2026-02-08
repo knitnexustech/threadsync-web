@@ -47,29 +47,60 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
     }, [allChannels]);
 
     // Mutations
+    const handleRefresh = () => {
+        const mask = document.getElementById('global-loader');
+        if (mask) mask.style.display = 'flex';
+        queryClient.invalidateQueries();
+        setTimeout(() => window.location.reload(), 500);
+    };
+
     const createPOMutation = useMutation({
         mutationFn: (data: typeof newPOData) => api.createPO(currentUser, data.orderNo, data.styleNo, data.selectedTeamMembers),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['pos'] });
             closeModal();
+            handleRefresh();
         }
     });
 
     const createChannelMutation = useMutation({
         mutationFn: (data: typeof newChannelData) => api.createChannel(currentUser, modalState.data.poId, data.name, data.vendorId),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['channels'] });
             closeModal();
-        }
+            handleRefresh();
+        },
+        onError: (err: any) => alert(err.message || "Failed to create group")
+    });
+
+    const addVendorMutation = useMutation({
+        mutationFn: (data: typeof newVendor) => api.createVendor(data.name, data.phone, data.adminName),
+        onSuccess: async (_, variables) => {
+            setVendorsList(await api.getVendors());
+            const passcode = variables.phone.slice(-4);
+            const appLink = window.location.origin;
+            const message = `Hello ${variables.adminName},\n\nI am inviting you as a supplier to join our production tracking app: ${appLink}\n\nYour login details are:\nPhone: ${variables.phone}\nPasscode: ${passcode}`;
+            setInviteLink(`https://wa.me/91${variables.phone}?text=${encodeURIComponent(message)}`);
+            setNewVendor({ name: '', phone: '', adminName: '' });
+            queryClient.invalidateQueries({ queryKey: ['partners'] });
+        },
+        onError: (err: any) => alert(err.message || "Failed to add vendor")
+    });
+
+    const addTeamMemberMutation = useMutation({
+        mutationFn: (data: typeof newTeamMember) => api.createTeamMember(currentUser, data.name, data.phone, data.passcode, data.role),
+        onSuccess: async (_, variables) => {
+            setTeamList(await api.getTeamMembers(currentUser));
+            const appLink = window.location.origin;
+            const message = `Hello ${variables.name},\n\nYou have been added as a ${variables.role.replace('_', ' ')} to the Kramiz production tracking app: ${appLink}\n\nYour login details are:\nPhone: ${variables.phone}\nPasscode: ${variables.passcode}`;
+            setInviteLink(`https://wa.me/91${variables.phone}?text=${encodeURIComponent(message)}`);
+            setNewTeamMember({ name: '', phone: '', passcode: '', role: 'JUNIOR_MERCHANDISER' });
+        },
+        onError: (err: any) => alert(err.message || "Failed to add team member")
     });
 
     const updateCompanyMutation = useMutation({
         mutationFn: (newName: string) => api.updateCompanyName(currentUser.company_id, newName),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['partners'] });
-            closeModal();
-            // We also need to reload the local company state
-            api.getCompany(currentUser.company_id).then(setUserCompany);
+            handleRefresh();
         }
     });
 
@@ -196,7 +227,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
     };
 
     const handleCreateChannel = async () => {
-        if (!newChannelData.name || !newChannelData.vendorId) return;
+        if (!newChannelData.name.trim()) {
+            alert("Please enter a group name (e.g. Knitting, Printing).");
+            return;
+        }
+        if (!newChannelData.vendorId) {
+            alert("Please select a supplier for this group. Use the 'Overview' group for internal team chat.");
+            return;
+        }
         createChannelMutation.mutate(newChannelData);
     };
 
@@ -205,66 +243,45 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
             alert("Please fill in company name, admin name, and phone.");
             return;
         }
-        try {
-            await api.createVendor(newVendor.name, newVendor.phone, newVendor.adminName);
-            setVendorsList(await api.getVendors());
-            const passcode = newVendor.phone.slice(-4);
-            const appLink = window.location.origin;
-            const message = `Hello ${newVendor.adminName},\n\nI am inviting you as a supplier to join our production tracking app: ${appLink}\n\nYour login details are:\nPhone: ${newVendor.phone}\nPasscode: ${passcode}`;
-            const encodedMessage = encodeURIComponent(message);
-            const waLink = `https://wa.me/91${newVendor.phone}?text=${encodedMessage}`;
-            setInviteLink(waLink);
-            setNewVendor({ name: '', phone: '', adminName: '' });
-            queryClient.invalidateQueries({ queryKey: ['partners'] });
-        } catch (err: any) {
-            alert(err.message || "Failed to add vendor");
-        }
+        addVendorMutation.mutate(newVendor);
     };
 
     const handleAddTeamMember = async () => {
         if (!newTeamMember.name || !newTeamMember.phone || !newTeamMember.passcode) return;
         if (!/^\d{10}$/.test(newTeamMember.phone)) { alert('Phone must be 10 digits'); return; }
         if (!/^\d{4}$/.test(newTeamMember.passcode)) { alert('Passcode must be 4 digits'); return; }
-        try {
-            await api.createTeamMember(currentUser, newTeamMember.name, newTeamMember.phone, newTeamMember.passcode, newTeamMember.role);
-            setTeamList(await api.getTeamMembers(currentUser));
-
-            const appLink = window.location.origin;
-            const message = `Hello ${newTeamMember.name},\n\nYou have been added as a ${newTeamMember.role.replace('_', ' ')} to the Kramiz production tracking app: ${appLink}\n\nYour login details are:\nPhone: ${newTeamMember.phone}\nPasscode: ${newTeamMember.passcode}`;
-            const encodedMessage = encodeURIComponent(message);
-            const waLink = `https://wa.me/91${newTeamMember.phone}?text=${encodedMessage}`;
-            setInviteLink(waLink);
-
-            setNewTeamMember({ name: '', phone: '', passcode: '', role: 'JUNIOR_MERCHANDISER' });
-        } catch (err: any) { alert(err.message); }
+        addTeamMemberMutation.mutate(newTeamMember);
     };
 
     const handlePOStatusChange = async (poId: string, newStatus: any) => {
-        await api.updatePOStatus(poId, newStatus);
-        queryClient.invalidateQueries({ queryKey: ['pos'] });
+        try {
+            await api.updatePOStatus(poId, newStatus);
+            handleRefresh();
+        } catch (err: any) { alert(err.message || "Failed to update status"); }
     };
+
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const handleEditPO = async () => {
         if (!modalState.data?.id) return;
+        setIsProcessing(true);
         try {
             await api.updatePO(currentUser, modalState.data.id, {
                 order_number: editPOData.orderNo,
                 style_number: editPOData.styleNo,
                 status: editPOData.status as any
             });
-            closeModal();
-            queryClient.invalidateQueries({ queryKey: ['pos'] });
-        } catch (err: any) { alert(err.message || "Failed to update PO"); }
+            handleRefresh();
+        } catch (err: any) { alert(err.message || "Failed to update PO"); setIsProcessing(false); }
     };
 
     const handleDeletePO = async () => {
         if (!modalState.data?.id) return;
+        setIsProcessing(true);
         try {
             await api.deletePO(currentUser, modalState.data.id);
-            closeModal();
-            queryClient.invalidateQueries({ queryKey: ['pos'] });
-            queryClient.invalidateQueries({ queryKey: ['channels'] });
-        } catch (err: any) { alert(err.message || "Failed to delete PO"); }
+            handleRefresh();
+        } catch (err: any) { alert(err.message || "Failed to delete PO"); setIsProcessing(false); }
     };
 
     const handleUpdatePasscode = async () => {
@@ -273,8 +290,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
         try {
             await api.updatePasscode(currentUser.id, passcodeData.oldPasscode, passcodeData.newPasscode);
             alert("Passcode updated!");
-            closeModal();
-            setPasscodeData({ oldPasscode: '', newPasscode: '', confirmPasscode: '' });
+            handleRefresh();
         } catch (err: any) { alert(err.message || "Failed to update"); }
     };
 
@@ -293,12 +309,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
             return;
         }
 
+        setIsProcessing(true);
         try {
             await api.deleteOrganization(currentUser, currentUser.company_id);
             alert("Organization successfully deleted.");
             onLogout();
+            handleRefresh();
         } catch (err: any) {
             alert(err.message || "Failed to delete organization");
+            setIsProcessing(false);
         }
     };
 
@@ -415,8 +434,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                             </div>
                                         </div>
                                         {isExpanded && (
-                                            <div className="animate-in fade-in slide-in-from-top-1 duration-200 py-0.5">
-                                                {poChannels.map(ch => (
+                                            <div className="animate-in fade-in slide-in-from-top-1 duration-200 py-1 divide-y divide-gray-100 bg-gray-50/30">
+                                                {poChannels.map((ch, idx) => (
                                                     <div
                                                         key={ch.id}
                                                         onClick={() => {
@@ -424,15 +443,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                                             api.markChannelAsRead(currentUser, ch.id);
                                                             queryClient.invalidateQueries({ queryKey: ['channels'] });
                                                         }}
-                                                        className={`px-4 py-2 cursor-pointer hover:bg-[#f5f6f6] flex items-center relative group ${selectedChannelId === ch.id ? 'bg-[#f0f2f5]' : ''}`}
+                                                        style={{ animationDelay: `${idx * 100}ms` }}
+                                                        className={`px-5 py-4 cursor-pointer flex items-center relative group transition-all duration-300 animate-slide-in hover:bg-white hover:shadow-sm ${selectedChannelId === ch.id ? 'bg-white shadow-inner' : ''}`}
                                                     >
-                                                        {(ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at)) && <div className="absolute left-3 w-2 h-2 bg-[#00a884] rounded-full"></div>}
-                                                        <div className="flex-1 ml-5">
-                                                            <div className="flex justify-between items-baseline gap-2">
-                                                                <span className={`text-[13px] truncate ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>{ch.name}</span>
+                                                        {(ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at)) && <div className="absolute left-3 w-2.5 h-2.5 bg-[#00a884] rounded-full shadow-md animate-pulse"></div>}
+                                                        <div className="flex-1 ml-4">
+                                                            <div className="flex justify-between items-center gap-3">
+                                                                <span className={`text-[14px] truncate transition-colors ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-black text-gray-900' : 'font-bold text-gray-600 group-hover:text-gray-900'}`}>{ch.name}</span>
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span>
-                                                                    <span className="text-[10px] text-gray-400 whitespace-nowrap">{ch.last_activity_at ? new Date(ch.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter shadow-sm ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span>
+                                                                    <svg className="w-4 h-4 text-gray-400 group-hover:text-[#008069] transition-all duration-300 transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -461,14 +481,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                     const parentPO = pos.find(p => p.id === ch.po_id);
                                     if (!parentPO) return null;
                                     return (
-                                        <div key={ch.id} onClick={() => { onSelectChannel(ch, parentPO); api.markChannelAsRead(currentUser, ch.id); queryClient.invalidateQueries({ queryKey: ['channels'] }); }} className={`px-4 py-3 cursor-pointer hover:bg-[#f5f6f6] flex items-center relative group ${selectedChannelId === ch.id ? 'bg-[#f0f2f5]' : ''}`}>
+                                        <div key={ch.id} onClick={() => { onSelectChannel(ch, parentPO); api.markChannelAsRead(currentUser, ch.id); queryClient.invalidateQueries({ queryKey: ['channels'] }); }} className={`px-4 py-3 cursor-pointer hover:bg-[#f5f6f6] flex items-center relative group border-b border-gray-50 last:border-b-0 ${selectedChannelId === ch.id ? 'bg-[#f0f2f5]' : ''}`}>
                                             {(ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at)) && <div className="absolute left-3 w-2.5 h-2.5 bg-[#00a884] rounded-full shadow-sm"></div>}
                                             <div className="flex-1 ml-6">
-                                                <div className="flex justify-between items-baseline gap-2">
+                                                <div className="flex justify-between items-center gap-2">
                                                     <span className={`text-sm truncate ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>{ch.name} ({parentPO.order_number})</span>
-                                                    <span className="text-[10px] text-gray-400 whitespace-nowrap">{ch.last_activity_at ? new Date(ch.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span>
+                                                        <svg className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+                                                    </div>
                                                 </div>
-                                                <div className="flex justify-between items-center mt-0.5"><span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span></div>
                                             </div>
                                         </div>
                                     );
@@ -543,17 +565,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
             </div>
 
             {/* Modals */}
-            <Modal isOpen={modalState.type === 'NEW_PO'} onClose={closeModal} title="Create New Order" footer={<button onClick={handleCreatePO} className="bg-[#008069] text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#006a57]">Create Order</button>}>
+            <Modal isOpen={modalState.type === 'NEW_PO'} onClose={closeModal} title="Create New Order" footer={<button onClick={handleCreatePO} disabled={createPOMutation.isPending} className="bg-[#008069] text-white px-6 py-2 rounded text-sm font-bold shadow-md hover:bg-[#006a57] disabled:bg-gray-300">{createPOMutation.isPending ? 'Creating...' : 'Create Order'}</button>}>
                 <div className="space-y-4">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Order Name/Number</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. ORD-2024..." value={newPOData.orderNo} onChange={e => setNewPOData({ ...newPOData, orderNo: e.target.value })} /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Style Type</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. T-Shirt..." value={newPOData.styleNo} onChange={e => setNewPOData({ ...newPOData, styleNo: e.target.value })} /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Order Name/Number</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. ORD-2024..." value={newPOData.orderNo} onChange={e => setNewPOData({ ...newPOData, orderNo: e.target.value })} /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Style Type</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. T-Shirt..." value={newPOData.styleNo} onChange={e => setNewPOData({ ...newPOData, styleNo: e.target.value })} /></div>
                 </div>
             </Modal>
-            <Modal isOpen={modalState.type === 'ADD_CHANNEL'} onClose={closeModal} title="Add Supplier Group" footer={<button onClick={handleCreateChannel} className="bg-[#008069] text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#006a57]">Add Group</button>}>
+            <Modal isOpen={modalState.type === 'ADD_CHANNEL'} onClose={closeModal} title="Add Supplier Group" footer={<button onClick={handleCreateChannel} disabled={createChannelMutation.isPending} className="bg-[#008069] text-white px-6 py-2 rounded text-sm font-bold shadow-md hover:bg-[#006a57] disabled:bg-gray-300">{createChannelMutation.isPending ? 'Adding...' : 'Add Group'}</button>}>
                 <div className="space-y-4 pb-16">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Group Name</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. Knitting..." value={newChannelData.name} onChange={e => setNewChannelData({ ...newChannelData, name: e.target.value })} /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Group Name</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. Knitting..." value={newChannelData.name} onChange={e => setNewChannelData({ ...newChannelData, name: e.target.value })} /></div>
                     <div className="relative">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Assign Supplier</label>
+                        <label className="block text-sm font-bold text-gray-700 uppercase tracking-tight mb-1">Assign Supplier</label>
                         <div className="relative" ref={supplierComboboxRef}>
                             <input type="text" className="w-full border rounded px-3 py-2 pr-8 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="Search supplier..." value={supplierSearchQuery || vendorsList.find(v => v.id === newChannelData.vendorId)?.name || ''} onChange={(e) => { setSupplierSearchQuery(e.target.value); setIsSupplierDropdownOpen(true); if (!e.target.value) setNewChannelData({ ...newChannelData, vendorId: '' }); }} onFocus={() => setIsSupplierDropdownOpen(true)} />
                             {isSupplierDropdownOpen && (
@@ -575,7 +597,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-3"><input type="text" placeholder="Company Name" className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newVendor.name} onChange={e => setNewVendor({ ...newVendor, name: e.target.value })} /><input type="text" placeholder="Admin Name" className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newVendor.adminName} onChange={e => setNewVendor({ ...newVendor, adminName: e.target.value })} /></div>
                         <input type="text" placeholder="Phone (10 digits)" className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newVendor.phone} onChange={e => setNewVendor({ ...newVendor, phone: e.target.value })} />
-                        <button onClick={handleAddVendor} className="w-full bg-[#008069] hover:bg-[#006a57] text-white text-sm font-bold py-2 rounded shadow-sm">+ Add Supplier</button>
+                        <button onClick={handleAddVendor} disabled={addVendorMutation.isPending} className="w-full bg-[#008069] hover:bg-[#006a57] text-white text-sm font-bold py-2 rounded shadow-sm disabled:bg-gray-300">{addVendorMutation.isPending ? 'Adding...' : '+ Add Supplier'}</button>
                     </div>
                 </div>
                 {inviteLink && (
@@ -603,7 +625,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                             <input type="text" placeholder="Full Name" className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newTeamMember.name} onChange={e => setNewTeamMember({ ...newTeamMember, name: e.target.value })} />
                             <div className="grid grid-cols-2 gap-3"><input type="tel" placeholder="Phone" maxLength={10} className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newTeamMember.phone} onChange={e => setNewTeamMember({ ...newTeamMember, phone: e.target.value.replace(/\D/g, '') })} /><input type="password" placeholder="Passcode" maxLength={4} className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069] text-center tracking-wider" value={newTeamMember.passcode} onChange={e => setNewTeamMember({ ...newTeamMember, passcode: e.target.value.replace(/\D/g, '') })} /></div>
                             <select className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newTeamMember.role} onChange={e => setNewTeamMember({ ...newTeamMember, role: e.target.value as any })}><option value="JUNIOR_MERCHANDISER">Junior Merchandiser</option><option value="SENIOR_MERCHANDISER">Senior Merchandiser</option><option value="JUNIOR_MANAGER">Junior Manager</option><option value="SENIOR_MANAGER">Senior Manager</option><option value="ADMIN">Admin</option></select>
-                            <button onClick={handleAddTeamMember} className="w-full bg-[#008069] hover:bg-[#006a57] text-white text-sm font-bold py-2 rounded shadow-sm">+ Send Invite</button>
+                            <button onClick={handleAddTeamMember} disabled={addTeamMemberMutation.isPending} className="w-full bg-[#008069] hover:bg-[#006a57] text-white text-sm font-bold py-2 rounded shadow-sm disabled:bg-gray-300">{addTeamMemberMutation.isPending ? 'Sending...' : '+ Send Invite'}</button>
                         </div>
                     </div>
                 )}
@@ -649,14 +671,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     ))}
                 </ul>
             </Modal>
-            <Modal isOpen={modalState.type === 'EDIT_PO'} onClose={closeModal} title="Edit Order Details" footer={<div className="flex gap-3 justify-stretch">{canDeletePO && <button onClick={() => { closeModal(); openModal('DELETE_PO', modalState.data); }} className="bg-red-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-700">Delete Order</button>}<button onClick={handleEditPO} className="bg-[#008069] text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#006a57]">Save Changes</button></div>}>
+            <Modal isOpen={modalState.type === 'EDIT_PO'} onClose={closeModal} title="Edit Order Details" footer={<div className="flex gap-3 justify-stretch">{canDeletePO && <button onClick={() => { closeModal(); openModal('DELETE_PO', modalState.data); }} disabled={isProcessing} className="bg-red-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-700 disabled:opacity-50">Delete Order</button>}<button onClick={handleEditPO} disabled={isProcessing} className="bg-[#008069] text-white px-6 py-2 rounded text-sm font-bold shadow-md hover:bg-[#006a57] disabled:bg-gray-300">{isProcessing ? 'Saving...' : 'Save Changes'}</button></div>}>
                 <div className="space-y-4">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Order #</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" value={editPOData.orderNo} onChange={e => setEditPOData({ ...editPOData, orderNo: e.target.value })} /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Style</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" value={editPOData.styleNo} onChange={e => setEditPOData({ ...editPOData, styleNo: e.target.value })} /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Status</label><select className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" value={editPOData.status} onChange={e => setEditPOData({ ...editPOData, status: e.target.value })}><option value="PENDING">Pending</option><option value="IN_PROGRESS">In Progress</option><option value="COMPLETED">Completed</option></select></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Order #</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" value={editPOData.orderNo} onChange={e => setEditPOData({ ...editPOData, orderNo: e.target.value })} /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Style</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" value={editPOData.styleNo} onChange={e => setEditPOData({ ...editPOData, styleNo: e.target.value })} /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Status</label><select className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" value={editPOData.status} onChange={e => setEditPOData({ ...editPOData, status: e.target.value })}><option value="PENDING">Pending</option><option value="IN_PROGRESS">In Progress</option><option value="COMPLETED">Completed</option></select></div>
                 </div>
             </Modal>
-            <Modal isOpen={modalState.type === 'DELETE_PO'} onClose={closeModal} title="Delete Order" footer={<div className="flex gap-3 justify-end"><button onClick={closeModal} className="px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 rounded">Cancel</button><button onClick={handleDeletePO} className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded">Delete</button></div>}><div className="space-y-3"><p className="text-sm text-gray-700">Are you sure you want to delete <strong>{modalState.data?.order_number}</strong>?</p><div className="bg-red-50 border border-red-200 rounded p-3"><p className="text-sm text-red-800 font-medium">⚠️ Warning</p><p className="text-xs text-red-700 mt-1">Permanently delete everything? This cannot be undone.</p></div></div></Modal>
+            <Modal isOpen={modalState.type === 'DELETE_PO'} onClose={closeModal} title="Delete Order" footer={<div className="flex gap-3 justify-end"><button onClick={closeModal} disabled={isProcessing} className="px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50">Cancel</button><button onClick={handleDeletePO} disabled={isProcessing} className="px-6 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded font-bold shadow-md disabled:bg-red-400">{isProcessing ? 'Deleting...' : 'Delete'}</button></div>}><div className="space-y-3"><p className="text-sm text-gray-700">Are you sure you want to delete <strong>{modalState.data?.order_number}</strong>?</p><div className="bg-red-50 border border-red-200 rounded p-3"><p className="text-sm text-red-800 font-medium">⚠️ Warning</p><p className="text-xs text-red-700 mt-1">Permanently delete everything? This cannot be undone.</p></div></div></Modal>
             <Modal isOpen={modalState.type === 'CHANGE_PASSCODE'} onClose={closeModal} title="Change Passcode" footer={<button onClick={handleUpdatePasscode} className="bg-[#008069] text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#006a57]">Update Passcode</button>}>
                 <div className="space-y-4">
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Current Passcode</label><input type="password" maxLength={4} className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069] tracking-widest font-black" placeholder="****" value={passcodeData.oldPasscode} onChange={e => setPasscodeData({ ...passcodeData, oldPasscode: e.target.value.replace(/\D/g, '') })} /></div>

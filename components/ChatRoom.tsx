@@ -183,7 +183,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                 user_id: currentUser.id,
                 content: content,
                 is_system_update: false,
-                created_at: new Date().toISOString(),
+                timestamp: new Date().toISOString(),
                 user: currentUser
             } as any;
 
@@ -191,43 +191,60 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
 
             return { previousMessages };
         },
-        onError: (err, variables, context: any) => {
+        onError: (err: any, variables, context: any) => {
             if (context?.previousMessages) {
                 queryClient.setQueryData(['messages', channel.id], context.previousMessages);
             }
+            alert("Failed to send: " + err.message);
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
         }
     });
 
+    const handleRefresh = () => {
+        const mask = document.getElementById('global-loader');
+        if (mask) mask.style.display = 'flex';
+        queryClient.invalidateQueries();
+        setTimeout(() => window.location.reload(), 500);
+    };
+
     const updateStatusMutation = useMutation({
         mutationFn: (newStat: string) => api.updateChannelStatus(channel.id, newStat),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['channels'] })
+        onSuccess: () => handleRefresh()
     });
 
     const addMembersMutation = useMutation({
         mutationFn: (userIds: string[]) => Promise.all(userIds.map(uid => api.addChannelMember(currentUser, channel.id, uid))),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['members', channel.id] });
-            setShowAddMemberModal(false);
-        }
+        onSuccess: () => handleRefresh()
     });
 
     const editChannelMutation = useMutation({
         mutationFn: (name: string) => api.updateChannel(currentUser, channel.id, { name }),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['channels'] });
-            setIsEditingChannelName(false);
-        }
+        onSuccess: () => handleRefresh()
     });
 
     const deleteChannelMutation = useMutation({
         mutationFn: () => api.deleteChannel(currentUser, channel.id),
+        onSuccess: () => handleRefresh()
+    });
+
+    const removeMemberMutation = useMutation({
+        mutationFn: (userId: string) => api.removeChannelMember(currentUser, channel.id, userId),
+        onSuccess: () => handleRefresh(),
+        onError: (err: any) => alert(err.message || "Failed to remove member")
+    });
+
+    const deleteMessageMutation = useMutation({
+        mutationFn: (messageId: string) => {
+            const msg = messages.find(m => m.id === messageId);
+            return api.editMessage(currentUser, messageId, `[DELETED] ${msg?.content || ''}`);
+        },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['channels'] });
-            onBack();
-        }
+            queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
+            setDeletingMessageId(null);
+        },
+        onError: (err: any) => alert(err.message || "Failed to delete message")
     });
 
     const scrollToBottom = () => {
@@ -329,22 +346,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
 
     const handleRemoveMember = async (userId: string, userName: string) => {
         if (!confirm(`Remove ${userName}?`)) return;
-        try {
-            await api.removeChannelMember(currentUser, channel.id, userId);
-            queryClient.invalidateQueries({ queryKey: ['members', channel.id] });
-        } catch (err: any) { alert(err.message || "Failed"); }
+        removeMemberMutation.mutate(userId);
     };
 
     const confirmDeleteMessage = async () => {
         if (!deletingMessageId) return;
-        try {
-            const msg = messages.find(m => m.id === deletingMessageId);
-            if (msg) {
-                await api.editMessage(currentUser, deletingMessageId, `[DELETED] ${msg.content}`);
-                queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
-            }
-            setDeletingMessageId(null);
-        } catch (err: any) { alert(err.message || "Failed"); }
+        deleteMessageMutation.mutate(deletingMessageId);
     };
 
     const handleSaveChannelName = () => {
@@ -385,12 +392,17 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                             const showDropdown = openDropdownId === msg.id;
                             if (isSystem) return <div key={msg.id} className="flex justify-center my-3"><span className="bg-[#d5f4e6] text-gray-700 text-xs px-4 py-1.5 rounded-full shadow-sm">{msg.content}</span></div>;
                             return (
-                                <div key={msg.id} className={`flex items-end gap-1 ${isMe ? 'justify-end' : 'justify-start'} group`} onMouseEnter={() => setHoveredMessageId(msg.id)} onMouseLeave={() => { setHoveredMessageId(null); setOpenDropdownId(null); }}>
-                                    {isMe && hoveredMessageId === msg.id && canDelete && (
-                                        <div className="relative mb-1">
-                                            <button onClick={() => setOpenDropdownId(showDropdown ? null : msg.id)} className="p-1 hover:bg-gray-200 rounded-full opacity-0 group-hover:opacity-100"><svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg></button>
-                                            {showDropdown && <div className="absolute left-0 bottom-full mb-1 bg-white shadow-xl rounded-lg border border-gray-200 overflow-hidden z-20 min-w-[100px]"><button onClick={() => { setDeletingMessageId(msg.id); setOpenDropdownId(null); }} className="w-full px-4 py-2.5 text-sm hover:bg-red-50 text-red-600">Delete</button></div>}
-                                        </div>
+                                <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} group max-w-full`}>
+                                    {isMe && canDelete && (
+                                        <button
+                                            onClick={() => setDeletingMessageId(msg.id)}
+                                            className="p-2 text-gray-300 hover:text-red-500 active:text-red-600 transition-colors duration-200 mb-1 flex-shrink-0"
+                                            title="Delete message"
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
                                     )}
                                     <div className={`max-w-[75%] rounded-xl px-3 py-1.5 shadow-sm text-sm relative ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none'}`}>
                                         {!isMe && (

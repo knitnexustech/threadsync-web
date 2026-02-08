@@ -3,7 +3,7 @@ import { supabase, supabaseAdmin } from './supabaseClient';
 import {
     Company, User, PurchaseOrder, Channel, Message,
     AttachedFile, UserRole, ChannelMember, POMember,
-    hasPermission
+    hasPermission, ChannelType
 } from './types';
 
 // ============================================
@@ -175,7 +175,6 @@ export const api = {
                 name: 'Overview',
                 type: 'OVERVIEW',
                 status: 'IN_PROGRESS',
-                completion_percentage: 0,
                 vendor_id: null
             })
             .select()
@@ -321,7 +320,7 @@ export const api = {
         })) as Channel[];
     },
 
-    createChannel: async (currentUser: User, poId: string, name: string, vendorId: string, channelType: string = 'KNITTING') => {
+    createChannel: async (currentUser: User, poId: string, name: string, vendorId: string, channelType: ChannelType = 'VENDOR') => {
         if (!hasPermission(currentUser.role, 'CREATE_CHANNEL')) {
             throw new Error('You do not have permission to create channels');
         }
@@ -333,7 +332,6 @@ export const api = {
                 name: name,
                 type: channelType,
                 status: 'PENDING',
-                completion_percentage: 0,
                 vendor_id: vendorId || null
             })
             .select()
@@ -397,7 +395,6 @@ export const api = {
         if (updates.name !== undefined) allowedUpdates.name = updates.name;
         if (updates.type !== undefined) allowedUpdates.type = updates.type;
         if (updates.status !== undefined) allowedUpdates.status = updates.status;
-        if (updates.completion_percentage !== undefined) allowedUpdates.completion_percentage = updates.completion_percentage;
         if (updates.vendor_id !== undefined) allowedUpdates.vendor_id = updates.vendor_id;
 
         const { data, error } = await supabase
@@ -518,18 +515,24 @@ export const api = {
     },
 
     sendMessage: async (currentUser: User, channelId: string, content: string, isSystem = false) => {
+        // Log for debugging
+        console.log('Sending message to DB:', { channelId, content, isSystem });
+
         const { data, error } = await supabase
             .from('messages')
             .insert({
                 channel_id: channelId,
                 user_id: currentUser.id,
-                content: content,
+                content: content, // Reverting to plain string
                 is_system_update: isSystem
             })
             .select()
             .single();
 
-        if (error) throw new Error('Failed to send message: ' + error.message);
+        if (error) {
+            console.error('Supabase Error:', error);
+            throw new Error('Failed to send message: ' + error.message);
+        }
 
         return {
             ...data,

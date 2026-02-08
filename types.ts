@@ -61,7 +61,7 @@ export interface POMember {
   added_at?: string;
 }
 
-export type ChannelType = 'KNITTING' | 'DYEING' | 'PRINTING' | 'STITCHING' | 'OVERVIEW';
+export type ChannelType = 'OVERVIEW' | 'VENDOR';
 
 export interface Channel {
   id: string;
@@ -70,7 +70,6 @@ export interface Channel {
   type: ChannelType;
   vendor_id?: string; // Nullable if managed internally or unassigned (for OVERVIEW type)
   status: string; // PENDING, IN_PROGRESS, COMPLETED
-  completion_percentage: number;
   specs: Spec[]; // Channel-specific specs (GSM, Dia, Color, etc.)
   files: AttachedFile[]; // Channel-specific files (spec sheets, samples, etc.)
   last_activity_at?: string;

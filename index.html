@@ -34,6 +34,81 @@
         .font-blanka {
             font-family: 'Blanka', sans-serif;
         }
+
+        @keyframes pulse-hint {
+
+            0%,
+            100% {
+                background-color: transparent;
+            }
+
+            50% {
+                background-color: rgba(0, 128, 105, 0.08);
+            }
+        }
+
+        .animate-pulse-hint {
+            animation: pulse-hint 2s ease-in-out infinite;
+        }
+
+        @keyframes slide-in-right {
+            from {
+                transform: translateX(-10px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .animate-slide-in {
+            animation: slide-in-right 0.5s ease-out forwards;
+        }
+
+        /* Loading Mask Styles */
+        #global-loader {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(4px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #008069;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
     </style>
     <script type="importmap">
 {
@@ -48,6 +123,12 @@
 </head>
 
 <body>
+    <div id="global-loader">
+        <div class="spinner"></div>
+        <p
+            style="margin-top: 16px; font-weight: 700; color: #008069; text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px;">
+            Syncing Updates...</p>
+    </div>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
