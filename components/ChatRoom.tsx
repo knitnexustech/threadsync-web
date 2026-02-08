@@ -6,6 +6,7 @@ import { SpecDrawer } from './SpecDrawer';
 import { Modal } from './Modal';
 import { compressImage } from '../imageUtils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { playNotificationSound, triggerVibration } from '../notificationUtils';
 import { supabase } from '../supabaseClient';
 
 interface ChatRoomProps {
@@ -105,17 +106,40 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             }, (payload) => {
                 const newMsg = payload.new as Message;
 
-                // 1. Instantly update the local cache for immediate display
+                // 1. Update the local cache
                 queryClient.setQueryData(['messages', channel.id], (old: Message[] | undefined) => {
                     if (!old) return [newMsg];
-                    // Avoid duplicate if it's our own message we already pushed optimistically
-                    if (old.some(m => m.id === newMsg.id)) return old;
+
+                    // Improved duplicate check: 
+                    // If we have an optimistic message (ID is a random string vs UUID), 
+                    // match by content and user_id to replace it instead of appending.
+                    const isDuplicate = old.some(m => m.id === newMsg.id);
+                    if (isDuplicate) return old;
+
+                    // Find if there's an optimistic version of this message
+                    const optimisticIndex = old.findIndex(m =>
+                        m.user_id === newMsg.user_id &&
+                        m.content === newMsg.content &&
+                        m.id.length < 20 // Crude check for Math.random() ID vs UUID
+                    );
+
+                    if (optimisticIndex !== -1) {
+                        const updated = [...old];
+                        updated[optimisticIndex] = newMsg;
+                        return updated;
+                    }
+
                     return [...old, newMsg];
                 });
 
-                // 2. Show notification
+                // 2. Play alert and show notification
                 if (newMsg.user_id !== currentUser.id && !newMsg.is_system_update) {
-                    showNotification(`New Message in ${channel.name}`, newMsg.content);
+                    playNotificationSound();
+                    triggerVibration();
+
+                    if (document.visibilityState === 'hidden') {
+                        showNotification(`New Message in ${channel.name}`, newMsg.content);
+                    }
                 }
             })
             .on('postgres_changes', {
@@ -123,13 +147,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                 schema: 'public',
                 table: 'messages',
                 filter: `channel_id=eq.${channel.id}`
-            }, () => {
-                // For updates/deletes, force a clean refresh
-                queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
+            }, (payload) => {
+                if (payload.eventType !== 'INSERT') {
+                    // For updates/deletes, force a clean refresh
+                    queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
+                }
             })
             .subscribe();
 
-        // Auto-refresh when user focuses back on the tab (fixes "stuck" PWA state)
+        // Global check for notifications when this specific chat is NOT the only thing on screen
+        // or for general tab focus
         const handleFocus = () => {
             queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
         };

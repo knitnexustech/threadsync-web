@@ -5,8 +5,10 @@ import { Sidebar } from './components/Sidebar';
 import { ChatRoom } from './components/ChatRoom';
 import { LandingPage } from './components/LandingPage';
 import { Signup } from './components/Signup';
-import { User, Channel, PurchaseOrder } from './types';
+import { User, Channel, PurchaseOrder, Message } from './types';
 import { saveSession, loadSession, clearSession } from './sessionUtils';
+import { supabase } from './supabaseClient';
+import { playNotificationSound, triggerVibration } from './notificationUtils';
 
 type ViewState = 'LANDING' | 'LOGIN' | 'SIGNUP' | 'APP';
 
@@ -65,6 +67,66 @@ const App: React.FC = () => {
             setDeferredPrompt(e);
         });
     }, []);
+
+    // Global Notifications & Realtime Sync
+    useEffect(() => {
+        if (!user || view !== 'APP') return;
+
+        console.log('Initializing Global Realtime Listener for user:', user.id);
+
+        const globalMsgSubscription = supabase
+            .channel('global-messages')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages',
+            }, async (payload) => {
+                const newMsg = payload.new as Message;
+
+                // 1. Basic filtering: Don't notify if it's our own message or a system update
+                if (newMsg.user_id === user.id || newMsg.is_system_update) return;
+
+                // 2. Avoid duplicate notification if ChatRoom is already handling it
+                if (selectedChannel && newMsg.channel_id === selectedChannel.c.id) {
+                    console.log('Skipping global notification as channel is active');
+                    return;
+                }
+
+                // 3. Play Sound/Vibration
+                playNotificationSound();
+                triggerVibration();
+
+                // 4. Show Notification (Only if user is not actively looking at the app)
+                if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
+                    // Try to get channel info for better notification
+                    const { data: channelData } = await supabase
+                        .from('channels')
+                        .select('name')
+                        .eq('id', newMsg.channel_id)
+                        .single();
+
+                    const title = channelData ? `New Message in ${channelData.name}` : 'New Message';
+
+                    if ('serviceWorker' in navigator) {
+                        const reg = await navigator.serviceWorker.ready;
+                        reg.showNotification(title, {
+                            body: newMsg.content,
+                            icon: '/Kramiz%20app%20icon.png',
+                            badge: '/favicon.png',
+                            tag: newMsg.channel_id, // Group by channel
+                            renotify: true
+                        } as any);
+                    } else {
+                        new Notification(title, { body: newMsg.content });
+                    }
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(globalMsgSubscription);
+        };
+    }, [user, view, selectedChannel]);
 
     const handleLogin = (loggedInUser: User, rememberMe: boolean) => {
         saveSession(loggedInUser, rememberMe); // Save to storage
