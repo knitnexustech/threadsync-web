@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatRoom } from './components/ChatRoom';
 import { LandingPage } from './components/LandingPage';
 import { Signup } from './components/Signup';
+import { ProductTour } from './components/ProductTour';
 import { User, Channel, PurchaseOrder, Message } from './types';
 import { saveSession, loadSession, clearSession } from './sessionUtils';
 import { supabase } from './supabaseClient';
@@ -20,6 +21,7 @@ const App: React.FC = () => {
 
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [showInstallPopup, setShowInstallPopup] = useState(false);
+    const [runTour, setRunTour] = useState(false);
 
     // Unified function to handle onboarding prompts (Notifications -> Install)
     const showOnboardingPrompts = () => {
@@ -46,6 +48,11 @@ const App: React.FC = () => {
                 if (savedUser) {
                     setUser(savedUser);
                     setView('APP');
+                    // Check if user needs onboarding
+                    const hasOnboarded = localStorage.getItem('kramiz_onboarded');
+                    if (!hasOnboarded) {
+                        setTimeout(() => setRunTour(true), 1500); // Start tour slightly after app load
+                    }
                     // Small delay to let the app settle before asking for permissions
                     setTimeout(showOnboardingPrompts, 3000);
                 }
@@ -200,6 +207,8 @@ const App: React.FC = () => {
                             deferredPrompt.userChoice.then(() => setDeferredPrompt(null));
                         }
                     }}
+                    onTakeTour={() => setRunTour(true)}
+                    isTourActive={runTour}
                 />
             </div>
 
@@ -272,6 +281,17 @@ const App: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {user && (
+                <ProductTour
+                    currentUser={user}
+                    run={runTour}
+                    onFinish={() => {
+                        setRunTour(false);
+                        localStorage.setItem('kramiz_onboarded', 'true');
+                    }}
+                />
             )}
         </div>
     );

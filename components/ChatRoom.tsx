@@ -372,11 +372,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                     <div className="flex items-center flex-1 min-w-0">
                         <button onClick={onBack} className="mr-3 md:hidden"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-12"><h2 className="font-bold text-lg truncate">{channel.name}</h2><select value={currentStatus} onChange={handleStatusChange} className={`text-[12px] px-2 py-0.75 rounded-full border-none focus:ring-0 cursor-pointer font-bold ${currentStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' : currentStatus === 'IN_PROGRESS' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}><option value="PENDING">PENDING</option><option value="IN_PROGRESS">IN PROGRESS</option><option value="COMPLETED">COMPLETED</option></select></div>
+                            <div className="flex items-center gap-12"><h2 className="font-bold text-lg truncate">{channel.name}</h2><select id="tour-status-dropdown" value={currentStatus} onChange={handleStatusChange} className={`text-[12px] px-2 py-0.75 rounded-full border-none focus:ring-0 cursor-pointer font-bold ${currentStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' : currentStatus === 'IN_PROGRESS' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}><option value="PENDING">PENDING</option><option value="IN_PROGRESS">IN PROGRESS</option><option value="COMPLETED">COMPLETED</option></select></div>
                             <p className="text-xs text-green-100 truncate">{po.order_number} • {po.style_number}</p>
                         </div>
                     </div>
-                    <button onClick={() => setShowGroupInfo(true)} className="hover:bg-white/10 p-2 rounded-full transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg></button>
+                    <button id="tour-group-info-btn" onClick={() => setShowGroupInfo(true)} className="hover:bg-white/10 p-2 rounded-full transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg></button>
                 </div>
 
                 <SpecDrawer channel={channel} currentUser={currentUser} />
@@ -424,7 +424,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                 </div>
 
                 <form onSubmit={handleSend} className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative">
-                    <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg></button>
+                    <button id="tour-attach-btn" type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg></button>
                     {showAttachMenu && (
                         <div className="absolute bottom-12 left-0 bg-white shadow-2xl rounded-2xl p-1 w-48 z-50 border border-gray-100 overflow-hidden divide-y divide-gray-50">
                             <button
@@ -465,7 +465,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                         multiple
                         accept="image/*,.pdf,.doc,.docx"
                     />
-                    <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 py-3 px-4 rounded-full border-none focus:ring-0 text-sm shadow-sm" />
+                    <input id="tour-chat-input" type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 py-3 px-4 rounded-full border-none focus:ring-0 text-sm shadow-sm" />
                     <button type="submit" disabled={!newMessage.trim()} className={`p-3 rounded-full shadow-md ${newMessage.trim() ? 'bg-[#008069] text-white' : 'bg-gray-300 text-gray-500'}`}><svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>
                 </form>
             </div>
@@ -479,17 +479,17 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                             {isEditingChannelName ? (
                                 <div className="flex items-center gap-2"><input type="text" value={editedChannelName} onChange={(e) => setEditedChannelName(e.target.value)} className="text-xl font-black border-b-2 border-[#008069] focus:outline-none w-full max-w-[200px]" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleSaveChannelName()} /><button onClick={handleSaveChannelName} className="text-green-600">✓</button></div>
                             ) : (
-                                <><h2 className="text-2xl font-black text-gray-900">{channel.name}</h2>{canEditChannel && <button onClick={() => setIsEditingChannelName(true)} className="p-2 text-gray-400 hover:text-[#008069]">✎</button>}</>
+                                <><h2 className="text-2xl font-black text-gray-900">{channel.name}</h2>{canEditChannel && <button id="tour-edit-channel-btn" onClick={() => setIsEditingChannelName(true)} className="p-2 text-gray-400 hover:text-[#008069]">✎</button>}</>
                             )}
                         </div>
                         <p className="text-sm font-medium text-gray-500">{po.order_number}</p>
                     </div>
-                    <div className="p-6 space-y-8">
+                    <div id="tour-group-participants" className="p-6 space-y-8">
                         <div>
-                            <div className="flex justify-between items-center mb-4"><h4 className="text-xs font-bold text-gray-400 uppercase">Participants</h4>{canAddMembers && <button onClick={handleAddMember} className="text-[10px] font-bold text-[#008069]">+ Add Member</button>}</div>
+                            <div className="flex justify-between items-center mb-4"><h4 className="text-xs font-bold text-gray-400 uppercase">Participants</h4>{canAddMembers && <button id="tour-add-member-btn" onClick={handleAddMember} className="text-[10px] font-bold text-[#008069]">+ Add Member</button>}</div>
                             <div className="space-y-3">{members.map(m => (<div key={m.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-50 group"><div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold">{m.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-gray-800 truncate">{m.name}{m.id === currentUser.id && ' (You)'}</p><p className="text-[10px] text-gray-500 uppercase tracking-widest">{m.company?.name || '...'}</p></div>{canRemoveMembers && m.id !== currentUser.id && m.role !== 'ADMIN' && <button onClick={() => handleRemoveMember(m.id, m.name)} className="opacity-0 group-hover:opacity-100 text-red-400">✕</button>}</div>))}</div>
                         </div>
-                        {canDeleteChannel && <div className="pt-8 border-t"><button onClick={handleDeleteChannel} className="w-full py-3 border-2 border-dashed border-red-100 text-red-500 text-xs font-bold uppercase rounded-xl hover:bg-red-50">Delete Group</button></div>}
+                        {canDeleteChannel && <div className="pt-8 border-t"><button id="tour-delete-group-btn" onClick={handleDeleteChannel} className="w-full py-3 border-2 border-dashed border-red-100 text-red-500 text-xs font-bold uppercase rounded-xl hover:bg-red-50">Delete Group</button></div>}
                     </div>
                 </div>
             )}

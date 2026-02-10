@@ -116,6 +116,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
     return (
         <div className="bg-white border-b border-gray-200 shadow-sm z-20 relative">
             <div
+                id="tour-specs-drawer"
                 className="flex justify-between items-center px-4 py-3 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors"
                 onClick={() => setIsOpen(!isOpen)}
             >

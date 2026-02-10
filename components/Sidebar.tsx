@@ -12,9 +12,11 @@ interface SidebarProps {
     onLogout: () => void;
     installPrompt?: any;
     onInstallApp?: () => void;
+    onTakeTour?: () => void;
+    isTourActive?: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, selectedChannelId, onLogout, installPrompt, onInstallApp }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, selectedChannelId, onLogout, installPrompt, onInstallApp, onTakeTour, isTourActive }) => {
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<'ORDERS' | 'PARTNERS'>('ORDERS');
 
@@ -271,6 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                 style_number: editPOData.styleNo,
                 status: editPOData.status as any
             });
+            closeModal();
             handleRefresh();
         } catch (err: any) { alert(err.message || "Failed to update PO"); setIsProcessing(false); }
     };
@@ -280,6 +283,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
         setIsProcessing(true);
         try {
             await api.deletePO(currentUser, modalState.data.id);
+            closeModal();
             handleRefresh();
         } catch (err: any) { alert(err.message || "Failed to delete PO"); setIsProcessing(false); }
     };
@@ -395,19 +399,71 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                 {loading ? (
                     <div className="p-4 text-center text-gray-400 text-sm">Syncing secure data...</div>
                 ) : activeTab === 'ORDERS' ? (
-                    pos.filter(po => po.order_number.toLowerCase().includes(globalSearchQuery.toLowerCase()) || po.style_number?.toLowerCase().includes(globalSearchQuery.toLowerCase())).length === 0 ? (
-                        <div className="p-4 text-center text-gray-400 text-sm">No matching orders found.</div>
-                    ) : (
-                        pos.filter(po => po.order_number.toLowerCase().includes(globalSearchQuery.toLowerCase()) || po.style_number?.toLowerCase().includes(globalSearchQuery.toLowerCase()))
-                            .map(po => {
+                    <React.Fragment>
+                        {(() => {
+                            const filteredPos = pos.filter(po => po.order_number.toLowerCase().includes(globalSearchQuery.toLowerCase()) || po.style_number?.toLowerCase().includes(globalSearchQuery.toLowerCase()));
+
+                            // If no orders and tour is active, show GHOST data
+                            if (filteredPos.length === 0 && isTourActive) {
+                                const ghostPO: PurchaseOrder = {
+                                    id: 'ghost-po',
+                                    order_number: 'PO-2026-DEMO',
+                                    style_number: 'SUPER SOFT HOODIE',
+                                    status: 'IN_PROGRESS',
+                                    manufacturer_id: currentUser.company_id,
+                                    created_by: currentUser.id,
+                                    image_url: ''
+                                };
+                                const ghostChannels: Channel[] = [
+                                    { id: 'ghost-ch-1', po_id: 'ghost-po', name: 'OVERVIEW', type: 'OVERVIEW', status: 'IN_PROGRESS', specs: [], files: [] },
+                                    { id: 'ghost-ch-2', po_id: 'ghost-po', name: 'KNITTING', type: 'VENDOR', status: 'PENDING', specs: [], files: [] }
+                                ];
+                                return (
+                                    <React.Fragment key={ghostPO.id}>
+                                        <div id="tour-po-card" className="mb-3 mx-2 rounded-xl border border-dashed border-gray-300 overflow-hidden shadow-sm bg-white ring-1 ring-gray-200 shadow-md">
+                                            <div onClick={() => { }} className="px-4 py-3 flex gap-3 items-center group relative cursor-pointer">
+                                                <svg id="tour-expand-po" className="w-4 h-4 text-gray-500 rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-bold text-gray-900 text-[14px] truncate leading-tight">{ghostPO.order_number}</h3>
+                                                    <p className="text-[10px] font-medium text-gray-500 truncate uppercase tracking-wider mt-0.5">{ghostPO.style_number}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold uppercase">ACTIVE</span>
+                                                    <button id="tour-edit-po" className="p-1 text-gray-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                                                </div>
+                                            </div>
+                                            <div className="bg-gray-50/50 border-t border-gray-100 pb-2">
+                                                {ghostChannels.map((ch, idx) => (
+                                                    <div key={ch.id} id={idx === 0 ? "tour-group-item" : undefined} onClick={() => onSelectChannel(ch, ghostPO)} className="px-5 py-3 flex items-center gap-3 hover:bg-white transition-colors cursor-pointer border-b border-gray-50 last:border-0">
+                                                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${ch.name === 'OVERVIEW' ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-bold text-gray-700">{ch.name}</p>
+                                                            <p className="text-[10px] text-gray-400 uppercase tracking-tighter">Sample Group • 2 Members</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="p-2 bg-slate-50 text-[10px] text-slate-500 font-bold text-center border-t border-gray-100 italic">
+                                                Sample Data for Tour
+                                            </div>
+                                        </div>
+                                    </React.Fragment>
+                                );
+                            }
+
+                            if (filteredPos.length === 0) {
+                                return <div className="p-4 text-center text-gray-400 text-sm">No matching orders found.</div>;
+                            }
+
+                            return filteredPos.map(po => {
                                 const poChannels = channelsMap[po.id] || [];
                                 const isCompleted = po.status === 'COMPLETED';
                                 const isExpanded = expandedPOs[po.id] ?? true;
                                 const hasUnread = poChannels.some(ch => ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at));
                                 return (
-                                    <div key={po.id} className={`mb-3 mx-2 rounded-xl border border-gray-200 overflow-hidden shadow-sm transition-all duration-300 ${isExpanded ? 'bg-white ring-1 ring-gray-200 shadow-md' : 'bg-gray-100 hover:bg-gray-200'} ${isCompleted ? 'opacity-60' : ''}`}>
+                                    <div key={po.id} id="tour-po-card" className={`mb-3 mx-2 rounded-xl border border-gray-200 overflow-hidden shadow-sm transition-all duration-300 ${isExpanded ? 'bg-white ring-1 ring-gray-200 shadow-md' : 'bg-gray-100 hover:bg-gray-200'} ${isCompleted ? 'opacity-60' : ''}`}>
                                         <div onClick={() => togglePO(po.id)} className={`px-4 py-3 flex gap-3 items-center group relative cursor-pointer transition-colors ${!isExpanded ? 'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.5)]' : ''}`}>
-                                            <svg className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+                                            <svg id="tour-expand-po" className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
                                                     <h3 className="font-bold text-gray-900 text-[14px] truncate leading-tight">{po.order_number}</h3>
@@ -427,7 +483,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                                     <option value="COMPLETED">DONE</option>
                                                 </select>
                                                 {canEditPO && (
-                                                    <button onClick={(e) => { e.stopPropagation(); openModal('EDIT_PO', po); }} className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-[#008069] transition-all duration-200">
+                                                    <button id="tour-edit-po" onClick={(e) => { e.stopPropagation(); openModal('EDIT_PO', po); }} className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-[#008069] transition-all duration-200">
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                     </button>
                                                 )}
@@ -438,6 +494,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                                 {poChannels.map((ch, idx) => (
                                                     <div
                                                         key={ch.id}
+                                                        id={idx === 0 ? "tour-group-item" : undefined}
                                                         onClick={() => {
                                                             onSelectChannel(ch, po);
                                                             api.markChannelAsRead(currentUser, ch.id);
@@ -469,8 +526,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                         )}
                                     </div>
                                 );
-                            })
-                    )
+                            });
+                        })()}
+                    </React.Fragment>
                 ) : (
                     <div className="pb-4 px-2 space-y-4 pt-2">
                         {partners.filter(p => p.name.toLowerCase().includes(globalSearchQuery.toLowerCase())).length === 0 && <div className="p-4 text-center text-gray-400 text-sm">No matching {getPartnerLabel().toLowerCase()} found.</div>}
@@ -503,7 +561,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
 
             <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center relative">
                 <div className="relative">
-                    <button onClick={() => setShowSettings(!showSettings)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-lg border border-gray-300 bg-white shadow-sm" title="Settings">
+                    <button id="tour-settings-btn" onClick={() => setShowSettings(!showSettings)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-lg border border-gray-300 bg-white shadow-sm" title="Settings">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
@@ -515,6 +573,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                             ) : (isIOS || isAndroid) ? (
                                 <button onClick={() => openModal('HOW_TO_INSTALL')} className="w-full text-left px-4 py-3 hover:bg-green-50 text-sm text-[#008069] font-bold border-b border-gray-100">📲 How to Install</button>
                             ) : null}
+                            <button onClick={() => { setShowSettings(false); onTakeTour?.(); }} className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm text-blue-600 font-bold border-b border-gray-100 italic">🚀 Take Tour</button>
                             {notificationPermission !== 'granted' ? (
                                 <button
                                     onClick={requestNotificationPermission}
@@ -544,10 +603,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                     Click the 🔒 lock icon in your browser address bar to reset permissions.
                                 </div>
                             )}
-                            {canManageSuppliers && <button onClick={() => openModal('SUPPLIERS')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">📋 List of Suppliers</button>}
-                            <button onClick={() => openModal('TEAM')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">👥 Team Members</button>
+                            {canManageSuppliers && <button id="tour-suppliers-btn" onClick={() => openModal('SUPPLIERS')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">📋 List of Suppliers</button>}
+                            <button id="tour-team-btn" onClick={() => openModal('TEAM')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">👥 Team Members</button>
                             {currentUser.role === 'ADMIN' && (
-                                <button onClick={() => openModal('EDIT_COMPANY')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">🏢 Edit Company Name</button>
+                                <button id="tour-edit-company-btn" onClick={() => openModal('EDIT_COMPANY')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">🏢 Edit Company Name</button>
                             )}
                             <button onClick={() => openModal('CHANGE_PASSCODE')} className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-100">🔐 Change Passcode</button>
                             {currentUser.role === 'ADMIN' && (
@@ -558,7 +617,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     )}
                 </div>
                 {canCreatePO && (
-                    <button onClick={() => openModal('NEW_PO')} className="h-10 w-10 flex items-center justify-center text-white bg-[#008069] hover:bg-[#006a57] rounded-full shadow-lg transition-transform hover:scale-105" title="Create New PO">
+                    <button id="tour-create-po" onClick={() => openModal('NEW_PO')} className="h-10 w-10 flex items-center justify-center text-white bg-[#008069] hover:bg-[#006a57] rounded-full shadow-lg transition-transform hover:scale-105" title="Create New PO">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     </button>
                 )}
@@ -566,7 +625,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
 
             {/* Modals */}
             <Modal isOpen={modalState.type === 'NEW_PO'} onClose={closeModal} title="Create New Order" footer={<button onClick={handleCreatePO} disabled={createPOMutation.isPending} className="bg-[#008069] text-white px-6 py-2 rounded text-sm font-bold shadow-md hover:bg-[#006a57] disabled:bg-gray-300">{createPOMutation.isPending ? 'Creating...' : 'Create Order'}</button>}>
-                <div className="space-y-4">
+                <div id="tour-create-po" className="space-y-4">
                     <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Order Name/Number</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. ORD-2024..." value={newPOData.orderNo} onChange={e => setNewPOData({ ...newPOData, orderNo: e.target.value })} /></div>
                     <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Style Type</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. T-Shirt..." value={newPOData.styleNo} onChange={e => setNewPOData({ ...newPOData, styleNo: e.target.value })} /></div>
                 </div>
@@ -624,7 +683,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                         <div className="space-y-3">
                             <input type="text" placeholder="Full Name" className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newTeamMember.name} onChange={e => setNewTeamMember({ ...newTeamMember, name: e.target.value })} />
                             <div className="grid grid-cols-2 gap-3"><input type="tel" placeholder="Phone" maxLength={10} className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newTeamMember.phone} onChange={e => setNewTeamMember({ ...newTeamMember, phone: e.target.value.replace(/\D/g, '') })} /><input type="password" placeholder="Passcode" maxLength={4} className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069] text-center tracking-wider" value={newTeamMember.passcode} onChange={e => setNewTeamMember({ ...newTeamMember, passcode: e.target.value.replace(/\D/g, '') })} /></div>
-                            <select className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newTeamMember.role} onChange={e => setNewTeamMember({ ...newTeamMember, role: e.target.value as any })}><option value="JUNIOR_MERCHANDISER">Junior Merchandiser</option><option value="SENIOR_MERCHANDISER">Senior Merchandiser</option><option value="JUNIOR_MANAGER">Junior Manager</option><option value="SENIOR_MANAGER">Senior Manager</option><option value="ADMIN">Admin</option></select>
+                            <select id="tour-role-dropdown" className="w-full text-sm px-3 py-2 rounded border border-gray-300 text-gray-900 focus:outline-none focus:border-[#008069]" value={newTeamMember.role} onChange={e => setNewTeamMember({ ...newTeamMember, role: e.target.value as any })}><option value="JUNIOR_MERCHANDISER">Junior Merchandiser</option><option value="SENIOR_MERCHANDISER">Senior Merchandiser</option><option value="JUNIOR_MANAGER">Junior Manager</option><option value="SENIOR_MANAGER">Senior Manager</option><option value="ADMIN">Admin</option></select>
                             <button onClick={handleAddTeamMember} disabled={addTeamMemberMutation.isPending} className="w-full bg-[#008069] hover:bg-[#006a57] text-white text-sm font-bold py-2 rounded shadow-sm disabled:bg-gray-300">{addTeamMemberMutation.isPending ? 'Sending...' : '+ Send Invite'}</button>
                         </div>
                     </div>
