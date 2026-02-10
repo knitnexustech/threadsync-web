@@ -586,7 +586,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                     onClick={async () => {
                                         if ('serviceWorker' in navigator) {
                                             const registration = await navigator.serviceWorker.ready;
-                                            registration.showNotification("Kramiz Test", {
+                                            registration.showNotification("Kramiz (Beta) Test", {
                                                 body: "Notifications are working on this device! ✅",
                                                 icon: '/Kramiz%20app%20icon.png',
                                                 badge: '/favicon.png'
@@ -617,7 +617,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     )}
                 </div>
                 {canCreatePO && (
-                    <button id="tour-create-po" onClick={() => openModal('NEW_PO')} className="h-10 w-10 flex items-center justify-center text-white bg-[#008069] hover:bg-[#006a57] rounded-full shadow-lg transition-transform hover:scale-105" title="Create New PO">
+                    <button id="tour-create-po" onClick={() => openModal('NEW_PO')} className="h-10 w-10 flex items-center justify-center text-white bg-[#008069] hover:bg-[#006a57] rounded-full shadow-lg transition-transform hover:scale-105" title="Create New Order">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     </button>
                 )}
@@ -671,7 +671,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     {vendorsList.filter(v => v.name.toLowerCase().includes(vendorsSearchQuery.toLowerCase())).map(v => (
                         <li key={v.id} className="py-3 flex justify-between items-center group gap-3">
                             <div className="flex flex-col min-w-0"><span className="font-semibold text-sm text-gray-800 truncate">{v.name}</span><span className="text-[12px] text-gray-500 truncate">Admin: {(v as any).adminName} • {(v as any).adminPhone}</span></div>
-                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded shrink-0">Vendor</span>
+                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded shrink-0">Supplier</span>
                         </li>
                     ))}
                 </ul>
@@ -762,7 +762,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
             </Modal>
             <Modal isOpen={modalState.type === 'HOW_TO_INSTALL'} onClose={closeModal} title={`Install on ${isIOS ? 'iPhone / iPad' : 'Android'}`}>
                 <div className="space-y-6 py-2">
-                    <p className="text-sm text-gray-600 leading-relaxed font-medium">To use Kramiz as a mobile app, follow these simple steps:</p>
+                    <p className="text-sm text-gray-600 leading-relaxed font-medium">To use Kramiz (Beta) as a mobile app, follow these simple steps:</p>
                     <div className="space-y-4">
                         {isIOS ? (
                             <>
@@ -793,7 +793,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                         </div>
                     </div>
                     <div className="bg-green-50 p-4 rounded-2xl border border-green-100 mt-4">
-                        <p className="text-xs text-[#008069] font-bold leading-relaxed">✨ Once added, Kramiz will work just like a native app on your phone!</p>
+                        <p className="text-xs text-[#008069] font-bold leading-relaxed">✨ Once added, Kramiz (Beta) will work just like a native app on your phone!</p>
                     </div>
                 </div>
             </Modal>

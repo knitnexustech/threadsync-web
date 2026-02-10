@@ -80,7 +80,27 @@ self.addEventListener('push', (event) => {
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
+
     event.waitUntil(
-        clients.openWindow(event.notification.data.url)
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            // Check if there's already a window open
+            for (const client of clientList) {
+                const clientUrl = new URL(client.url);
+                const targetUrl = new URL(event.notification.data.url || '/', self.location.origin);
+
+                // If it's the same origin, just focus it
+                if (clientUrl.origin === targetUrl.origin && 'focus' in client) {
+                    return client.focus().then(focusedClient => {
+                        // Optional: Navigate to specific page if needed
+                        // if (focusedClient) focusedClient.navigate(targetUrl.href);
+                        return focusedClient;
+                    });
+                }
+            }
+            // If no window is open, open a new one
+            if (clients.openWindow) {
+                return clients.openWindow(event.notification.data.url || '/');
+            }
+        })
     );
 });

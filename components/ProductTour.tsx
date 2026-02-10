@@ -19,7 +19,7 @@ export const ProductTour: React.FC<ProductTourProps> = ({ currentUser, run, onFi
         {
             target: 'body',
             placement: 'center' as const,
-            title: 'Welcome to Kramiz! 🚀',
+            title: 'Welcome to Kramiz (Beta)! 🚀',
             content: 'Let\'s take a 2-minute tour to show you how to track your orders without the stress.',
             disableBeacon: true,
             data: { action: 'OPEN_CREATE_ORDER_MODAL' }
@@ -105,7 +105,7 @@ export const ProductTour: React.FC<ProductTourProps> = ({ currentUser, run, onFi
                 <div className="text-left py-2">
                     <p className="mb-3">We write the invite for you. Just click and send on WhatsApp!</p>
                     <div className="bg-green-50 p-3 rounded-lg border border-green-200 text-[11px] text-green-800 italic shadow-inner">
-                        "Hello [Name], join Kramiz to track our latest production orders. Login Details- Phone: [Number], Passcode: [4-Digits]..."
+                        "Hello [Name], join Kramiz (Beta) to track our latest production orders. Login Details- Phone: [Number], Passcode: [4-Digits]..."
                     </div>
                 </div>
             ),
@@ -151,7 +151,7 @@ export const ProductTour: React.FC<ProductTourProps> = ({ currentUser, run, onFi
         {
             target: 'body',
             title: 'You\'re All Set! ✅',
-            content: 'Move Kramiz to your Home Screen and turn on Notifications so you never miss a shipment update. Ready to build something great?',
+            content: 'Move Kramiz (Beta) to your Home Screen and turn on Notifications so you never miss a shipment update. Ready to build something great?',
             placement: 'center' as const,
         }
     ].filter(step => {

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Login } from './components/Login';
 import { Sidebar } from './components/Sidebar';
 import { ChatRoom } from './components/ChatRoom';
@@ -14,6 +15,7 @@ import { playNotificationSound, triggerVibration } from './notificationUtils';
 type ViewState = 'LANDING' | 'LOGIN' | 'SIGNUP' | 'APP';
 
 const App: React.FC = () => {
+    const queryClient = useQueryClient();
     const [user, setUser] = useState<User | null>(null);
     const [selectedChannel, setSelectedChannel] = useState<{ c: Channel, p: PurchaseOrder } | null>(null);
     const [view, setView] = useState<ViewState>('LANDING');
@@ -22,9 +24,16 @@ const App: React.FC = () => {
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [showInstallPopup, setShowInstallPopup] = useState(false);
     const [runTour, setRunTour] = useState(false);
+    const [isLoadingFromBackground, setIsLoadingFromBackground] = useState(false);
 
     // Unified function to handle onboarding prompts (Notifications -> Install)
     const showOnboardingPrompts = () => {
+        // If tour is active, wait and retry
+        if (runTour) {
+            setTimeout(showOnboardingPrompts, 5000);
+            return;
+        }
+
         // 1. Ask for notification permission first
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission().then(permission => {
@@ -36,7 +45,7 @@ const App: React.FC = () => {
         if (deferredPrompt) {
             setTimeout(() => {
                 setShowInstallPopup(true);
-            }, 30000);
+            }, 15000);
         }
     };
 
@@ -73,6 +82,19 @@ const App: React.FC = () => {
             e.preventDefault();
             setDeferredPrompt(e);
         });
+
+        // App Resume Listener (Refresh effect)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                setIsLoadingFromBackground(true);
+                queryClient.invalidateQueries();
+                setTimeout(() => {
+                    setIsLoadingFromBackground(false);
+                }, 600);
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, []);
 
     // Global Notifications & Realtime Sync
@@ -154,8 +176,8 @@ const App: React.FC = () => {
         setView('LOGIN');
     };
 
-    // Show loading screen while restoring session
-    if (isRestoringSession) {
+    // Show loading screen while restoring session or resuming
+    if (isRestoringSession || isLoadingFromBackground) {
         return (
             <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center">
                 <div className="text-center">
@@ -228,7 +250,7 @@ const App: React.FC = () => {
                             <img src="/logo_v2.png" alt="Kramiz" className="w-full h-full object-contain" />
                         </div>
                         <h1 className="text-5xl font-black tracking-[0.15em] text-gray-900 mb-4 font-blanka uppercase">
-                            Kramiz Web
+                            Kramiz (Beta) Web
                         </h1>
                         <p className="text-xl text-gray-500 max-w-md leading-relaxed">
                             Select an order to start simplifying your follow-ups. <br />
@@ -252,8 +274,8 @@ const App: React.FC = () => {
                                 <img src="/Kramiz%20app%20icon.png" alt="Kramiz" className="w-10 h-10 object-contain" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h3 className="text-xl font-black text-gray-900 leading-tight">Install Kramiz</h3>
-                                <p className="text-sm text-gray-500 mt-1 leading-relaxed">Add Kramiz to your home screen for high-speed tracking and instant follow-ups.</p>
+                                <h3 className="text-xl font-black text-gray-900 leading-tight">Install Kramiz (Beta)</h3>
+                                <p className="text-sm text-gray-500 mt-1 leading-relaxed">Add Kramiz (Beta) to your home screen for high-speed tracking and instant follow-ups.</p>
                             </div>
                         </div>
                         <div className="mt-6 flex gap-3">
