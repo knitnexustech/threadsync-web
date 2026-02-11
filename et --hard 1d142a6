@@ -1,0 +1,20 @@
+[33m1d142a6[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m File upload Fix
+[33m57e96ce[m[33m ([m[1;31morigin/main[m[33m)[m Added Live demo
+[33mbeb9fe4[m text and landing page UIUX changes
+[33mb305e7f[m fix: resolve dependency conflict for vercel build
+[33m30a54d9[m New landing page
+[33meca9d20[m added product tour
+[33m1cfd54d[m App refresh Mask
+[33m486325e[m message lag and notification update
+[33mee60142[m Final Touch: Optimistic UI for instant messaging and focus-based auto-refresh for PWA stability
+[33m9f3bb78[m Fixed Edge Function Error and Realtime Message Lag
+[33mbb9fe95[m App refresh & Notification Check
+[33mc65749a[m Critical Fix: White Screen crash resolved and Notification logic stabilized
+[33m1292363[m Notification Check
+[33m9ceff2f[m Image compression, Organization delete, notification updated
+[33m2d6645c[m Implemented quick rename feature for spec files
+[33mb8a0c61[m fixed file uploader mapping and UUID database error
+[33m4a90e22[m organization delete,favicon errors,fixed file upload
+[33m0d5bbdc[m New landing page
+[33m4e3b56b[m Enhanced branding, PWA features, and notifications
+[33mb4cee5b[m First upload

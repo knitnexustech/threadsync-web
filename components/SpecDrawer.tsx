@@ -297,7 +297,16 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                                         multiple
                                     />
                                     <button
-                                        onClick={() => fileInputRef.current?.click()}
+                                        onClick={() => {
+                                            (window as any).isKramizUploading = true;
+                                            fileInputRef.current?.click();
+                                            // Safety timeout
+                                            setTimeout(() => {
+                                                if (!(fileInputRef.current?.files?.length) && (window as any).isKramizUploading) {
+                                                    (window as any).isKramizUploading = false;
+                                                }
+                                            }, 60000);
+                                        }}
                                         disabled={isUploading}
                                         className="w-full border-2 border-dashed border-gray-300 rounded-lg p-3 text-gray-500 hover:border-[#008069] hover:text-[#008069] transition-all flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50"
                                     >

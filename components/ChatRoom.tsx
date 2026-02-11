@@ -276,8 +276,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             sendMessageMutation.mutate({ content: "👤 [Shared Contact]" });
             setShowAttachMenu(false);
         } else {
+            (window as any).isKramizUploading = true; // Set flag IMMEDIATELY before picker opens
             fileInputRef.current?.click();
             setShowAttachMenu(false);
+
+            // Safety timeout: if no file is selected within 60s, clear the flag
+            setTimeout(() => {
+                if (!(fileInputRef.current?.files?.length) && (window as any).isKramizUploading) {
+                    (window as any).isKramizUploading = false;
+                }
+            }, 60000);
         }
     };
 
@@ -289,6 +297,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             setIsUploading(true);
 
             try {
+                // Ensure flag is set during the async compression/upload phase
                 (window as any).isKramizUploading = true;
                 for (const file of selectedFiles) {
                     // Compress if image

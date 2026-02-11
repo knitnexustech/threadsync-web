@@ -151,7 +151,7 @@ export const ProductTour: React.FC<ProductTourProps> = ({ currentUser, run, onFi
         {
             target: 'body',
             title: 'You\'re All Set! ✅',
-            content: 'Move Kramiz (Beta) to your Home Screen and turn on Notifications so you never miss a shipment update. Ready to build something great?',
+            content: 'Move Kramiz (Beta) to your Home Screen and turn on Notifications so you never miss a order update. Checkout the demo now!',
             placement: 'center' as const,
         }
     ].filter(step => {

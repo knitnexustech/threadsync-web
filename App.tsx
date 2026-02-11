@@ -87,9 +87,11 @@ const App: React.FC = () => {
         // App Resume Listener (Refresh effect)
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                // If an upload is in progress, skip the background refresh to avoid cancelling the upload
+                // If an upload is in progress OR user just opened the file picker, skip refresh.
+                // This prevents the global loader from unmounting the app and killing the upload.
                 if ((window as any).isKramizUploading) {
-                    console.log('Skipping background refresh: Upload in progress');
+                    console.log('Skipping background refresh: Upload or File Picker active');
+                    // Reset the 'just opened picker' state after a small delay to allow resume
                     return;
                 }
 

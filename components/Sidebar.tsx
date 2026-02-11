@@ -530,11 +530,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                         })()}
                     </React.Fragment>
                 ) : (
-                    <div className="pb-4 px-2 space-y-4 pt-2">
+                    <div className="pb-2 px-2 space-y-2 pt-.5">
                         {partners.filter(p => p.name.toLowerCase().includes(globalSearchQuery.toLowerCase())).length === 0 && <div className="p-4 text-center text-gray-400 text-sm">No matching {getPartnerLabel().toLowerCase()} found.</div>}
                         {partners.filter(p => p.name.toLowerCase().includes(globalSearchQuery.toLowerCase())).map(partner => (
-                            <div key={partner.id} className="rounded-xl border border-gray-100 overflow-hidden bg-white shadow-sm">
-                                <div className="px-4 py-3 bg-gray-50/80 font-bold text-xs text-gray-500 uppercase tracking-widest border-b border-gray-100">{partner.name}</div>
+                            <div key={partner.id} className="rounded-xl border border-gray-400 overflow-hidden bg-white shadow-sm">
+                                <div className="px-4 py-2 bg-gray-300/500 font-bold text-[12px] text-gray-500 uppercase tracking-widest border-b border-gray-400">{partner.name}</div>
                                 {allChannels.filter(c => (isVendor && pos.find(p => p.id === c.po_id)?.manufacturer_id === partner.id && c.vendor_id === currentUser.company_id) || (!isVendor && c.vendor_id === partner.id && pos.find(p => p.id === c.po_id)?.manufacturer_id === currentUser.company_id)).map(ch => {
                                     const parentPO = pos.find(p => p.id === ch.po_id);
                                     if (!parentPO) return null;
@@ -542,10 +542,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                         <div key={ch.id} onClick={() => { onSelectChannel(ch, parentPO); api.markChannelAsRead(currentUser, ch.id); queryClient.invalidateQueries({ queryKey: ['channels'] }); }} className={`px-4 py-3 cursor-pointer hover:bg-[#f5f6f6] flex items-center relative group border-b border-gray-50 last:border-b-0 ${selectedChannelId === ch.id ? 'bg-[#f0f2f5]' : ''}`}>
                                             {(ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at)) && <div className="absolute left-3 w-2.5 h-2.5 bg-[#00a884] rounded-full shadow-sm"></div>}
                                             <div className="flex-1 ml-6">
-                                                <div className="flex justify-between items-center gap-2">
-                                                    <span className={`text-sm truncate ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>{ch.name} ({parentPO.order_number})</span>
+                                                <div className="flex justify-between items-center gap-1">
+                                                    <span className={`text-[16px] truncate ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-bold text-gray-900' : 'font-regular text-gray-700'}`}>{ch.name} ({parentPO.order_number})</span>
                                                     <div className="flex items-center gap-1.5">
-                                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span>
+                                                        <span className={`text-[10px] font-light px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span>
                                                         <svg className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
                                                     </div>
                                                 </div>
