@@ -11,6 +11,26 @@ import {
 // ============================================
 
 export const api = {
+    ensureDemoData: async (currentUser: User) => {
+        // 1. Check if Order #505 exists
+        const { data: existingPO } = await supabase
+            .from('purchase_orders')
+            .select('*')
+            .eq('manufacturer_id', currentUser.company_id)
+            .eq('order_number', '505')
+            .single();
+
+        if (existingPO) return; // Data already exists
+
+        // 2. Create Order #505 (this also creates the Overview channel automatically in createPO)
+        await api.createPO(
+            currentUser,
+            '505',
+            'S-BLUE-101',
+            [] // No additional team members for now
+        );
+    },
+
     login: async (phone: string, passcode: string) => {
         // Validate phone number format (must be exactly 10 digits)
         if (!/^\d{10}$/.test(phone)) {

@@ -127,16 +127,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
                     >
                         {loading ? 'LOGGING IN...' : 'LOGIN'}
                     </button>
-
-                    <div className="mt-4 text-xs text-gray-600 bg-gray-50 p-3 rounded border border-gray-100">
-                        <p className="font-bold text-gray-700 mb-2">Demo Credentials:</p>
-                        <ul className="space-y-1 font-medium">
-                            <li>📱 9876543210 | 🔐 1234 (Demo Admin)</li>
-                            <li>📱 9876543211 | 🔐 5678 (Junior Merchandiser)</li>
-                            <li>📱 8765432100 | 🔐 2222 (Admin Vendor)</li>
-                            <li>📱 7654321000 | 🔐 3333 (Senior Manager)</li>
-                        </ul>
-                    </div>
                 </form>
             </div>
         </div>

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 
 interface LandingPageProps {
     onNavigate: (page: 'LOGIN' | 'SIGNUP') => void;
+    onDemoLogin: () => void;
 }
 
 const DEMO_CHAT_MESSAGES = [
@@ -20,7 +21,7 @@ const CHAOS_MESSAGES = [
     { sender: '+91 99887...', text: '???', time: '10:15 AM', color: 'text-gray-600' },
 ];
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, onDemoLogin }) => {
     const [msgIndex, setMsgIndex] = useState(0);
     const [chaosIndex, setChaosIndex] = useState(0);
     const [scrolled, setScrolled] = useState(false);
@@ -131,27 +132,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                         </div>
 
                         <h1 className="text-4xl md:text-6xl font-black leading-[1.1] tracking-tight text-gray-900 drop-shadow-sm mb-6">
-                            Track Every Meter. <br />
+                            Track Every Order. <br />
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#008069] to-[#00b894]">Greige to Garment.</span>
                         </h1>
 
-                        <p className="text-lg text-gray-500 font-bold mb-2">Switch from Chaos to Kramiz.</p>
+                        <p className="text-lg text-gray-500 font-bold mb-2">Switch from Chaos to Kramiz(Beta).</p>
                         <p className="text-sm md:text-base text-gray-400 font-medium leading-relaxed max-w-sm mx-auto mb-8">
-                            Connect Knitters, Dyers, and Printers in one simple flow.
+                            Connect Every Supplier in one simple flow.
                         </p>
 
                         <div className="flex flex-col sm:flex-row gap-3 justify-center">
                             <button
-                                onClick={() => onNavigate('SIGNUP')}
-                                className="px-6 py-3 bg-[#008069] text-white rounded-xl font-bold text-base shadow-lg shadow-green-900/20 hover:shadow-green-900/30 hover:-translate-y-1 transition-all"
+                                onClick={onDemoLogin}
+                                className="px-6 py-3 bg-[#008069] text-white rounded-xl font-bold text-base shadow-lg shadow-green-900/20 hover:shadow-green-900/30 hover:-translate-y-1 transition-all flex items-center justify-center gap-2"
                             >
-                                Start Tracking
+                                <span className="text-xl">🚀</span>
+                                Try Live Demo
                             </button>
                             <button
-                                onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-                                className="px-6 py-3 bg-white text-gray-700 rounded-xl font-bold text-base border border-gray-200 hover:border-[#008069] hover:text-[#008069] transition-all"
+                                onClick={() => onNavigate('SIGNUP')}
+                                className="px-6 py-3 bg-white text-[#008069] rounded-xl font-bold text-base border border-[#008069]/20 hover:bg-green-50 transition-all font-bold"
                             >
-                                How it works
+                                Start Tracking
                             </button>
                         </div>
                     </div>

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Login } from './components/Login';
+import { api } from './supabaseAPI';
 import { Sidebar } from './components/Sidebar';
 import { ChatRoom } from './components/ChatRoom';
 import { LandingPage } from './components/LandingPage';
@@ -171,6 +172,26 @@ const App: React.FC = () => {
         showOnboardingPrompts();
     };
 
+    const handleDemoLogin = async () => {
+        const mask = document.getElementById('global-loader');
+        if (mask) mask.style.display = 'flex';
+        try {
+            const { user: demoUser } = await api.login('9876543210', '1234');
+            // Ensure Order 505 exists for this demo user
+            await api.ensureDemoData(demoUser);
+
+            saveSession(demoUser, true);
+            setUser(demoUser);
+            setView('APP');
+            setRunTour(true);
+        } catch (err) {
+            console.error('Demo login failed:', err);
+            alert('Demo is currently unavailable. Please try again later.');
+        } finally {
+            if (mask) mask.style.display = 'none';
+        }
+    };
+
     const handleLogout = () => {
         clearSession(); // Clear from storage
         setUser(null);
@@ -198,7 +219,7 @@ const App: React.FC = () => {
     }
 
     if (view === 'LANDING') {
-        return <LandingPage onNavigate={(page) => setView(page)} />;
+        return <LandingPage onNavigate={(page) => setView(page)} onDemoLogin={handleDemoLogin} />;
     }
 
     if (view === 'LOGIN') {
