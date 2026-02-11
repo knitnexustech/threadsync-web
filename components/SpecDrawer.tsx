@@ -38,6 +38,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
             setIsUploading(true);
 
             try {
+                (window as any).isKramizUploading = true;
                 for (const file of selectedFiles) {
                     // Compress if image
                     const fileToUpload = await compressImage(file);
@@ -54,6 +55,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                 alert("Failed to upload: " + err.message);
             } finally {
                 setIsUploading(false);
+                (window as any).isKramizUploading = false;
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
         }
@@ -224,7 +226,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                     {activeTab === 'FILES' && (
                         <>
                             {/* File List */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                                 {files.length === 0 && (
                                     <div className="col-span-full text-center text-gray-400 text-sm py-4 italic">No documents attached yet.</div>
                                 )}
@@ -243,7 +245,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                                                 )}
                                             </div>
                                             <div className="min-w-0 overflow-hidden">
-                                                <div className="text-sm font-medium text-gray-800 truncate" title={file.name}>{file.name}</div>
+                                                <div className="text-[12px] font-medium text-gray-800 truncate" title={file.name}>{file.name}</div>
                                                 <div className="text-[10px] text-gray-400 truncate">
                                                     By {file.uploadedBy} • {new Date(file.uploadedAt).toLocaleDateString()}
                                                 </div>

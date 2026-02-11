@@ -24,6 +24,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
     const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
     // Channel editing state
     const [isEditingChannelName, setIsEditingChannelName] = useState(false);
@@ -288,6 +289,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             setIsUploading(true);
 
             try {
+                (window as any).isKramizUploading = true;
                 for (const file of selectedFiles) {
                     // Compress if image
                     const fileToUpload = await compressImage(file);
@@ -301,6 +303,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                 alert("Upload failed: " + err.message);
             } finally {
                 setIsUploading(false);
+                (window as any).isKramizUploading = false;
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
         }
@@ -310,7 +313,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         if (content.startsWith('[IMAGE]')) {
             const parts = content.split('|');
             const url = parts[0].replace('[IMAGE]', '').trim();
-            return <div className="mt-1"><img src={url} alt="Attachment" className="max-w-full rounded-lg max-h-60 object-cover border border-gray-200" /></div>;
+            return (
+                <div className="mt-1">
+                    <img
+                        src={url}
+                        alt="Attachment"
+                        className="max-w-full rounded-lg max-h-60 object-cover border border-gray-200 cursor-pointer hover:opacity-95 transition-all"
+                        onClick={() => setSelectedImageUrl(url)}
+                    />
+                </div>
+            );
         }
         if (content.startsWith('[FILE]')) {
             const parts = content.split('|');
@@ -413,8 +425,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                                                 </span>
                                             </div>
                                         )}
-                                        <div className="pr-10 pb-1">{isDeleted ? <div className="text-gray-400 italic text-[11px]">Deleted</div> : renderMessageContent(msg.content)}</div>
-                                        <div className="text-[9px] text-gray-400 absolute bottom-1 right-2">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                        <div className="pr-20 pb-1">{isDeleted ? <div className="text-gray-400 italic text-[11px]">Deleted</div> : renderMessageContent(msg.content)}</div>
+                                        <div className="text-[9px] text-gray-400 absolute bottom-1 right-2">
+                                            {new Date(msg.timestamp).toLocaleDateString([], { day: '2-digit', month: 'short' })} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
                                     </div>
                                 </div>
                             );
@@ -497,6 +511,21 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             <Modal isOpen={deletingMessageId !== null} onClose={() => setDeletingMessageId(null)} title="Delete Message?"><div className="space-y-4"><p className="text-sm">Delete this message? This action is permanent.</p><div className="flex gap-3 justify-end"><button onClick={() => setDeletingMessageId(null)} className="px-4 py-2 bg-gray-200 rounded">Cancel</button><button onClick={confirmDeleteMessage} className="px-4 py-2 bg-red-600 text-white rounded">Delete</button></div></div></Modal>
             <Modal isOpen={showAddMemberModal} onClose={() => setShowAddMemberModal(false)} title="Add Members" footer={<button onClick={commitAddMembers} disabled={selectedUserIds.size === 0 || isAdding} className={`px-4 py-2 rounded ${selectedUserIds.size > 0 ? 'bg-[#008069] text-white' : 'bg-gray-300'}`}>{isAdding ? 'Adding...' : 'Add Selected'}</button>}>
                 <div className="max-h-80 overflow-y-auto space-y-2">{teamMembers.map(user => { const added = members.some(m => m.id === user.id); return (<div key={user.id} className={`flex items-center justify-between p-3 border rounded ${added ? 'bg-gray-50 opacity-60' : 'bg-white'}`}><div className="flex items-center gap-3"><div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center font-bold">{user.name[0]}</div><div><p className="text-sm font-medium">{user.name}</p><p className="text-xs text-gray-500">{user.role}</p></div></div>{added ? <span className="text-xs text-green-600 font-bold">Added</span> : <input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleMemberSelection(user.id)} />}</div>); })}</div>
+            </Modal>
+
+            {/* Image Preview Modal */}
+            <Modal
+                isOpen={selectedImageUrl !== null}
+                onClose={() => setSelectedImageUrl(null)}
+                title="Image Preview"
+            >
+                <div className="flex justify-center items-center bg-gray-50 rounded-lg p-1 min-h-[200px]">
+                    <img
+                        src={selectedImageUrl || ''}
+                        alt="Preview"
+                        className="max-w-full h-auto rounded shadow-sm"
+                    />
+                </div>
             </Modal>
         </div>
     );

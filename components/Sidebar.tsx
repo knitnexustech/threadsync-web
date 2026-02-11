@@ -374,8 +374,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                 </div>
 
                 <div className="flex">
-                    <button onClick={() => setActiveTab('ORDERS')} className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'ORDERS' ? 'border-[#008069] text-[#008069]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Orders</button>
-                    <button onClick={() => setActiveTab('PARTNERS')} className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'PARTNERS' ? 'border-[#008069] text-[#008069]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>{getPartnerLabel()}</button>
+                    <button onClick={() => setActiveTab('ORDERS')} className={`flex-1 py-2 text-m font-medium border-b-2 transition-colors ${activeTab === 'ORDERS' ? 'border-[#008069] text-[#008069]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Orders</button>
+                    <button onClick={() => setActiveTab('PARTNERS')} className={`flex-1 py-2 text-m font-medium border-b-2 transition-colors ${activeTab === 'PARTNERS' ? 'border-[#008069] text-[#008069]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>{getPartnerLabel()}</button>
                 </div>
             </div>
 
@@ -466,16 +466,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                             <svg id="tour-expand-po" className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <h3 className="font-bold text-gray-900 text-[14px] truncate leading-tight">{po.order_number}</h3>
+                                                    <h3 className="font-bold text-gray-900 text-[16px] truncate leading-tight">{po.order_number}</h3>
                                                     {hasUnread && !isExpanded && <div className="w-2 h-2 bg-[#00a884] rounded-full"></div>}
                                                 </div>
-                                                <p className="text-[10px] font-medium text-gray-500 truncate uppercase tracking-wider mt-0.5">{po.style_number}</p>
+                                                <p className="text-[12px] font-medium text-gray-500 truncate uppercase tracking-wider mt-0.5">{po.style_number}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <select
                                                     value={po.status}
                                                     onChange={(e) => handlePOStatusChange(po.id, e.target.value)}
-                                                    className={`text-[10px] px-2 py-0.5 rounded border-none focus:ring-0 cursor-pointer font-bold tracking-wide ${po.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : po.status === 'COMPLETED' ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100 text-yellow-700'}`}
+                                                    className={`text-[12px] px-2 py-0.5 rounded border-none focus:ring-0 cursor-pointer font-light tracking-wide ${po.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : po.status === 'COMPLETED' ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100 text-yellow-700'}`}
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
                                                     <option value="PENDING">PENDING</option>
@@ -490,7 +490,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                             </div>
                                         </div>
                                         {isExpanded && (
-                                            <div className="animate-in fade-in slide-in-from-top-1 duration-200 py-1 divide-y divide-gray-100 bg-gray-50/30">
+                                            <div className="animate-in fade-in slide-in-from-top-1 duration-200 px-2 divide-y-2 divide-gray-100 bg-gray-100/30">
                                                 {poChannels.map((ch, idx) => (
                                                     <div
                                                         key={ch.id}
@@ -501,14 +501,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                                             queryClient.invalidateQueries({ queryKey: ['channels'] });
                                                         }}
                                                         style={{ animationDelay: `${idx * 100}ms` }}
-                                                        className={`px-5 py-4 cursor-pointer flex items-center relative group transition-all duration-300 animate-slide-in hover:bg-white hover:shadow-sm ${selectedChannelId === ch.id ? 'bg-white shadow-inner' : ''}`}
+                                                        className={`px-5 py-4 rounded cursor-pointer flex items-center relative group transition-all duration-300 animate-slide-in hover:bg-gray-200 hover:shadow-sm ${selectedChannelId === ch.id ? 'bg-white shadow-inner' : ''}`}
                                                     >
                                                         {(ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at)) && <div className="absolute left-3 w-2.5 h-2.5 bg-[#00a884] rounded-full shadow-md animate-pulse"></div>}
                                                         <div className="flex-1 ml-4">
                                                             <div className="flex justify-between items-center gap-3">
-                                                                <span className={`text-[14px] truncate transition-colors ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-black text-gray-900' : 'font-bold text-gray-600 group-hover:text-gray-900'}`}>{ch.name}</span>
+                                                                <span className={`text-[16px] truncate transition-colors ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-black text-gray-900' : 'font-regular text-gray-600 group-hover:text-gray-900'}`}>{ch.name}</span>
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter shadow-sm ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span>
+                                                                    <span className={`text-[12px] font-light px-2 py-0.5 rounded-md uppercase tracking-tighter shadow-sm ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span>
                                                                     <svg className="w-4 h-4 text-gray-400 group-hover:text-[#008069] transition-all duration-300 transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                                                 </div>
                                                             </div>
@@ -516,7 +516,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                                     </div>
                                                 ))}
                                                 {!isCompleted && canCreateChannel && (
-                                                    <div className="px-4 py-2 border-t border-gray-50">
+                                                    <div className="px-4 py-2 rounded border-t border-gray-50">
                                                         <button onClick={() => openModal('ADD_CHANNEL', { poId: po.id })} className="w-full py-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:bg-blue-50 rounded-lg flex items-center justify-center gap-1.5 transition-all">
                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>Add Group
                                                         </button>

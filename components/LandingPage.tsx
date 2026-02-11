@@ -81,9 +81,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
                 <div className="max-w-7xl mx-auto flex flex-col lg:grid lg:grid-cols-3 gap-12 lg:gap-8 items-center relative z-10">
 
-                    {/* LEFT: PAIN (Chaos) - Order 2 on Mobile */}
-                    <div className="order-2 lg:order-1 w-full max-w-sm mx-auto relative group">
-                        <div className="bg-white rounded-[2rem] shadow-xl border border-gray-200 overflow-hidden transform transition-all duration-500 hover:shadow-2xl">
+                    {/* LEFT: PAIN (Chaos) - Order 1 on Mobile */}
+                    <div className="order-1 lg:order-1 w-full max-w-sm mx-auto relative group">
+                        <div className="absolute -top-5 left-1/2 -translate-x-1/2 z-30 bg-white px-4 py-1.5 rounded-full shadow-md border border-red-100 text-red-600 font-bold text-sm flex items-center gap-2 whitespace-nowrap">
+                            ⚠️ The Chaos
+                        </div>
+                        <div className="bg-white rounded-[2rem] shadow-xl border border-gray-200 overflow-hidden transform transition-all duration-500 hover:shadow-2xl relative z-10">
                             {/* Header */}
                             <div className="bg-[#075E54] p-4 flex items-center justify-between text-white">
                                 <div className="flex items-center gap-2">
@@ -120,8 +123,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                         </div>
                     </div>
 
-                    {/* CENTER: TEXT - Order 1 on Mobile */}
-                    <div className="order-1 lg:order-2 text-center relative z-20">
+                    {/* CENTER: TEXT - Order 2 on Mobile */}
+                    <div className="order-2 lg:order-2 text-center relative z-20">
                         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-100 rounded-full text-[#008069] text-xs font-bold uppercase tracking-widest animate-in slide-in-from-bottom-2 fade-in duration-700 mb-6">
                             <span className="w-2 h-2 rounded-full bg-[#008069] animate-pulse"></span>
                             Production Tracking Simplified
@@ -155,6 +158,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
                     {/* RIGHT: SOLUTION (Kramiz) - Order 3 on Mobile */}
                     <div className="order-3 lg:order-3 w-full max-w-sm mx-auto relative group">
+                        <div className="absolute -top-5 left-1/2 -translate-x-1/2 z-30 bg-white px-4 py-1.5 rounded-full shadow-md border border-green-100 text-[#008069] font-bold text-sm flex items-center gap-2 whitespace-nowrap">
+                            ✨ The Solution
+                        </div>
                         <div className="bg-white rounded-[2rem] shadow-xl border border-gray-200 overflow-hidden transform transition-all duration-500 hover:shadow-2xl relative z-10">
                             {/* App Header */}
                             <div className="bg-[#008069] p-4 text-white">
@@ -220,9 +226,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                                 </div>
                             </div>
                         </div>
-                        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-white px-4 py-1.5 rounded-full shadow-md border border-green-100 text-[#008069] font-bold text-sm flex items-center gap-2">
-                            ✨ The Solution
-                        </div>
                     </div>
                 </div>
             </section>
@@ -236,7 +239,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                         <h2 className="text-3xl md:text-5xl font-black text-gray-900 mb-6">Why switch?</h2>
                         <p className="text-xl text-gray-500 max-w-2xl mx-auto">
                             Managing production on WhatsApp is a nightmare. <br />
-                            <span className="text-[#008069] font-bold">Kramiz (Beta) is the dream.</span>
+                            <span className="text-[#008069] font-bold">Kramiz (Beta) is the solution.</span>
                         </p>
                     </div>
 
@@ -272,7 +275,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                             <ul className="space-y-4">
                                 <li className="flex gap-3 text-gray-800 font-bold items-start">
                                     <svg className="w-5 h-5 shrink-0 mt-0.5 text-[#008069]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                    Connect Knitters & Dyers in one flow
+                                    Connect with Suppliers for each order in a flow
                                 </li>
                                 <li className="flex gap-3 text-gray-800 font-bold items-start">
                                     <svg className="w-5 h-5 shrink-0 mt-0.5 text-[#008069]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
@@ -306,6 +309,84 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                             <div className="text-3xl mb-3">⚡</div>
                             <h3 className="font-bold text-lg mb-1">Zero-Lag Updates</h3>
                             <p className="text-white/80 text-sm">Status updates sync faster than a phone call. No manual refreshing.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            {/* ROLES & PERMISSIONS SECTION */}
+            <section className="py-24 bg-gray-50/50 relative overflow-hidden">
+                <div className="max-w-7xl mx-auto px-6 relative z-10">
+                    <div className="text-center mb-16">
+                        <span className="text-[#008069] font-black uppercase tracking-widest text-xs">Security & Access</span>
+                        <h2 className="text-4xl md:text-5xl font-black text-gray-900 mt-4 mb-6">Built for every team role.</h2>
+                        <p className="text-xl text-gray-500 max-w-2xl mx-auto font-medium">
+                            Granular permissions ensure the right people see the right data. <br />
+                            <span className="text-[#008069]">No overlaps. No leaks. No privacy risks.</span>
+                        </p>
+                    </div>
+
+                    <div className="grid lg:grid-cols-3 gap-8">
+                        {/* BRAND / ADMIN */}
+                        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
+                            <div className="w-14 h-14 bg-green-100/50 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform">👑</div>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-4">Factory Admins</h3>
+                            <p className="text-gray-500 font-medium leading-relaxed mb-6">Complete control over the production ecosystem.</p>
+                            <ul className="space-y-3">
+                                {[
+                                    'Create & Manage all Orders',
+                                    'Invite & Remove Partners',
+                                    'Access to all File Vaults',
+                                    'Bird\'s eye view of all statuses'
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-sm font-bold text-gray-700">
+                                        <svg className="w-4 h-4 text-[#008069]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* FACTORY PARTNERS */}
+                        <div className="bg-white p-8 rounded-[2.5rem] border border-[#008069]/20 shadow-lg shadow-green-900/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4">
+                                <span className="bg-[#008069] text-white text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-widest">Limited Access</span>
+                            </div>
+                            <div className="w-14 h-14 bg-[#008069] rounded-2xl flex items-center justify-center text-3xl mb-6 text-white group-hover:scale-110 transition-transform">🏭</div>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-4">Factory Vendors</h3>
+                            <p className="text-gray-500 font-medium leading-relaxed mb-6">Designed for Dyers, Knitters, Printers, Embroiders etc., on the go.</p>
+                            <ul className="space-y-3">
+                                {[
+                                    'See only assigned Orders',
+                                    'Cannot see other suppliers',
+                                    'Update status in one tap',
+                                    'Upload DCs directly from site'
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-sm font-bold text-gray-700">
+                                        <svg className="w-4 h-4 text-[#008069]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* MANAGEMENT */}
+                        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
+                            <div className="w-14 h-14 bg-blue-100/50 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform">📊</div>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-4">Management</h3>
+                            <p className="text-gray-500 font-medium leading-relaxed mb-6">High-level insights for decision makers.</p>
+                            <ul className="space-y-3">
+                                {[
+                                    'Complete oversight of all Order channels',
+                                    'Add and manage internal team members',
+                                    'Real-time production status monitoring',
+                                    'Access to all internal & vendor files'
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-sm font-bold text-gray-700">
+                                        <svg className="w-4 h-4 text-[#008069]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                     </div>
                 </div>

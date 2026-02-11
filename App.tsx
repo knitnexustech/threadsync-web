@@ -86,6 +86,12 @@ const App: React.FC = () => {
         // App Resume Listener (Refresh effect)
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
+                // If an upload is in progress, skip the background refresh to avoid cancelling the upload
+                if ((window as any).isKramizUploading) {
+                    console.log('Skipping background refresh: Upload in progress');
+                    return;
+                }
+
                 setIsLoadingFromBackground(true);
                 queryClient.invalidateQueries();
                 setTimeout(() => {
