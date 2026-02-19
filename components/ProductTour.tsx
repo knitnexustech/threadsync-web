@@ -116,7 +116,7 @@ export const ProductTour: React.FC<ProductTourProps> = ({ currentUser, run, onFi
             target: '#tour-suppliers-btn',
             title: 'External Factories',
             content: 'Add your regular suppliers once. Later, you can assign them to any department in a single click.',
-            data: { action: 'SELECT_GHOST_CHANNEL' }
+            data: { action: 'SELECT_GHOST_GROUP' }
         },
         {
             target: '#tour-status-dropdown',
@@ -183,7 +183,7 @@ export const ProductTour: React.FC<ProductTourProps> = ({ currentUser, run, onFi
                 document.getElementById('tour-role-dropdown')?.click();
             } else if (actionToPerform === 'CLOSE_MODAL') {
                 document.getElementById('modal-close-btn')?.click();
-            } else if (actionToPerform === 'SELECT_GHOST_CHANNEL') {
+            } else if (actionToPerform === 'SELECT_GHOST_GROUP') {
                 document.getElementById('tour-group-item')?.click();
             } else if (actionToPerform === 'OPEN_GROUP_INFO') {
                 document.getElementById('tour-group-info-btn')?.click();

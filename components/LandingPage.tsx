@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface LandingPageProps {
-    onNavigate: (page: 'LOGIN' | 'SIGNUP') => void;
     onDemoLogin: () => void;
 }
 
@@ -21,7 +20,8 @@ const CHAOS_MESSAGES = [
     { sender: '+91 99887...', text: '???', time: '10:15 AM', color: 'text-gray-600' },
 ];
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, onDemoLogin }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onDemoLogin }) => {
+    const navigate = useNavigate();
     const [msgIndex, setMsgIndex] = useState(0);
     const [chaosIndex, setChaosIndex] = useState(0);
     const [scrolled, setScrolled] = useState(false);
@@ -61,13 +61,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, onDemoLogi
                     </div>
                     <div className="flex gap-4">
                         <button
-                            onClick={() => onNavigate('LOGIN')}
+                            onClick={() => navigate('/login')}
                             className="px-4 py-2 text-sm font-bold text-gray-600 hover:text-[#008069] transition-colors"
                         >
                             Log In
                         </button>
                         <button
-                            onClick={() => onNavigate('SIGNUP')}
+                            onClick={() => navigate('/signup')}
                             className="px-6 py-2.5 bg-[#008069] text-white text-sm font-bold rounded-full shadow-lg shadow-green-900/20 hover:bg-[#006a57] hover:scale-105 active:scale-95 transition-all"
                         >
                             Start Tracking
@@ -150,7 +150,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, onDemoLogi
                                 Try Live Demo
                             </button>
                             <button
-                                onClick={() => onNavigate('SIGNUP')}
+                                onClick={() => navigate('/signup')}
                                 className="px-6 py-3 bg-white text-[#008069] rounded-xl font-bold text-base border border-[#008069]/20 hover:bg-green-50 transition-all font-bold"
                             >
                                 Start Tracking
@@ -505,7 +505,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, onDemoLogi
                             Join the production teams that save countless hours on manual follow-ups every week.
                         </p>
                         <button
-                            onClick={() => onNavigate('SIGNUP')}
+                            onClick={() => navigate('/signup')}
                             className="px-10 py-5 bg-[#008069] text-white rounded-full font-bold text-xl hover:bg-[#006a57] hover:scale-105 active:scale-95 transition-all shadow-xl shadow-[#008069]/30"
                         >
                             Start Tracking Your Orders Now

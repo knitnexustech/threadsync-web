@@ -33,15 +33,17 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
-    // Channel editing state
-    const [isEditingChannelName, setIsEditingChannelName] = useState(false);
-    const [editedChannelName, setEditedChannelName] = useState(channel.name);
+    // Group editing state
+    const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+    const [editedGroupName, setEditedGroupName] = useState(channel.name);
 
     // Add Member Modal state
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [teamMembers, setTeamMembers] = useState<User[]>([]);
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
     const [isAdding, setIsAdding] = useState(false);
+    const [hasPerformedInitialScroll, setHasPerformedInitialScroll] = useState(false);
+    const initialLastReadAtRef = useRef<string | undefined>(channel.last_read_at);
 
     // Queries
     const { data: messages = [], isLoading: loadingMessages } = useQuery({
@@ -61,8 +63,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
 
     // ROLE-BASED PERMISSIONS
     const canAddMembers = hasPermission(currentUser.role, 'ADD_CHANNEL_MEMBER');
-    const canEditChannel = hasPermission(currentUser.role, 'EDIT_CHANNEL');
-    const canDeleteChannel = hasPermission(currentUser.role, 'DELETE_CHANNEL');
+    const canEditGroup = hasPermission(currentUser.role, 'EDIT_CHANNEL');
+    const canDeleteGroup = hasPermission(currentUser.role, 'DELETE_CHANNEL');
     const canRemoveMembers = hasPermission(currentUser.role, 'REMOVE_CHANNEL_MEMBER');
 
     const canDeleteMessage = (message: Message) => message.user_id === currentUser.id;
@@ -70,10 +72,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     const [currentStatus, setCurrentStatus] = useState(channel.status);
 
     useEffect(() => {
-        setEditedChannelName(channel.name);
-        setIsEditingChannelName(false);
+        setEditedGroupName(channel.name);
+        setIsEditingGroupName(false);
         setCurrentStatus(channel.status);
-    }, [channel.id, channel.name, channel.status]);
+        setHasPerformedInitialScroll(false);
+        initialLastReadAtRef.current = channel.last_read_at;
+    }, [channel.id]);
 
     // Help show notification (Fixed for Mobile Support)
     const showNotification = async (title: string, body: string) => {
@@ -148,7 +152,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                 });
 
                 // 2. Play alert and show notification
-                if (newMsg.user_id !== currentUser.id && !newMsg.is_system_update) {
+                if (newMsg.user_id !== currentUser.id) {
                     playNotificationSound();
                     triggerVibration();
 
@@ -235,14 +239,30 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         onSuccess: () => handleRefresh()
     });
 
-    const editChannelMutation = useMutation({
-        mutationFn: (name: string) => api.updateChannel(currentUser, channel.id, { name }),
-        onSuccess: () => handleRefresh()
+    const editGroupMutation = useMutation({
+        mutationFn: (updates: Partial<Channel>) => api.updateChannel(currentUser, channel.id, updates),
+        onSuccess: () => {
+            handleRefresh();
+            setIsEditingGroupName(false);
+        }
     });
 
-    const deleteChannelMutation = useMutation({
+
+    const isOverdue = (date: string | undefined) => {
+        if (!date) return false;
+        const d = new Date(date);
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        d.setHours(0, 0, 0, 0);
+        return d < now;
+    };
+
+    const deleteGroupMutation = useMutation({
         mutationFn: () => api.deleteChannel(currentUser, channel.id),
-        onSuccess: () => handleRefresh()
+        onSuccess: () => {
+            handleRefresh();
+            onBack();
+        }
     });
 
     const removeMemberMutation = useMutation({
@@ -263,13 +283,38 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         onError: (err: any) => alert(err.message || "Failed to delete message")
     });
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
     };
 
     useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
+        if (!loadingMessages && messages.length > 0 && !hasPerformedInitialScroll) {
+            // Find first unread message
+            const firstUnread = messages.find(m =>
+                initialLastReadAtRef.current &&
+                new Date(m.timestamp) > new Date(initialLastReadAtRef.current) &&
+                m.user_id !== currentUser.id // Optional: focus on messages from others
+            );
+
+            if (firstUnread) {
+                // Wait a tiny bit for the DOM to be ready
+                setTimeout(() => {
+                    const element = document.getElementById(`msg-${firstUnread.id}`);
+                    if (element) {
+                        element.scrollIntoView({ block: 'center', behavior: 'instant' });
+                    } else {
+                        scrollToBottom('instant');
+                    }
+                }, 50);
+            } else {
+                scrollToBottom('instant');
+            }
+            setHasPerformedInitialScroll(true);
+        } else if (hasPerformedInitialScroll && !loadingMessages) {
+            // After initial scroll, scroll to bottom on new messages
+            scrollToBottom('smooth');
+        }
+    }, [messages, loadingMessages, hasPerformedInitialScroll, currentUser.id]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -481,14 +526,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         deleteMessageMutation.mutate(deletingMessageId);
     };
 
-    const handleSaveChannelName = () => {
-        if (!editedChannelName.trim()) return;
-        editChannelMutation.mutate(editedChannelName);
+    const handleSaveGroupName = () => {
+        if (!editedGroupName.trim()) return;
+        editGroupMutation.mutate({ name: editedGroupName });
     };
 
-    const handleDeleteChannel = () => {
+    const handleDeleteGroup = () => {
         if (!confirm(`Delete "${channel.name}"?`)) return;
-        deleteChannelMutation.mutate();
+        deleteGroupMutation.mutate();
     };
 
     return (
@@ -500,7 +545,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                         <button onClick={onBack} className="mr-3 md:hidden"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-12"><h2 className="font-bold text-lg truncate">{channel.name}</h2><select id="tour-status-dropdown" value={currentStatus} onChange={handleStatusChange} className={`text-[12px] px-2 py-0.75 rounded-full border-none focus:ring-0 cursor-pointer font-bold ${currentStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' : currentStatus === 'IN_PROGRESS' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}><option value="PENDING">PENDING</option><option value="IN_PROGRESS">IN PROGRESS</option><option value="COMPLETED">COMPLETED</option></select></div>
-                            <p className="text-xs text-green-100 truncate">{po.order_number} • {po.style_number}</p>
+                            <p className="text-xs text-green-100 truncate">
+                                {po.order_number} • {po.style_number}
+                                {channel.due_date && (
+                                    <span className={`ml-3 px-2 py-0.5 rounded-full font-normal text-[12px] uppercase tracking-tighter ${isOverdue(channel.due_date) ? 'bg-red-500 text-white' : 'bg-white/20 text-white border border-white/30'}`}>
+                                        Due: {new Date(channel.due_date).toLocaleDateString([], { day: '2-digit', month: 'short' })}
+                                    </span>
+                                )}
+                            </p>
                         </div>
                     </div>
                     <button id="tour-group-info-btn" onClick={() => setShowGroupInfo(true)} className="hover:bg-white/10 p-2 rounded-full transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg></button>
@@ -519,7 +571,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                             const showDropdown = openDropdownId === msg.id;
                             if (isSystem) return <div key={msg.id} className="flex justify-center my-3"><span className="bg-[#d5f4e6] text-gray-700 text-xs px-4 py-1.5 rounded-full shadow-sm">{msg.content}</span></div>;
                             return (
-                                <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} group max-w-full`}>
+                                <div key={msg.id} id={`msg-${msg.id}`} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} group max-w-full`}>
                                     {isMe && canDelete && (
                                         <button
                                             onClick={() => setDeletingMessageId(msg.id)}
@@ -616,12 +668,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                     <div className="bg-[#f0f2f5] p-4 flex items-center gap-3 border-b border-gray-200"><button onClick={() => setShowGroupInfo(false)} className="text-gray-600"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button><h3 className="font-semibold text-gray-800">Group Info</h3></div>
                     <div className="p-8 flex flex-col items-center border-b border-gray-100">
                         <div className="flex items-center gap-2 mb-1">
-                            {isEditingChannelName ? (
-                                <div className="flex items-center gap-2"><input type="text" value={editedChannelName} onChange={(e) => setEditedChannelName(e.target.value)} className="text-xl font-black border-b-2 border-[#008069] focus:outline-none w-full max-w-[200px]" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleSaveChannelName()} /><button onClick={handleSaveChannelName} className="text-green-600">✓</button></div>
+                            {isEditingGroupName ? (
+                                <div className="flex items-center gap-2"><input type="text" value={editedGroupName} onChange={(e) => setEditedGroupName(e.target.value)} className="text-xl font-black border-b-2 border-[#008069] focus:outline-none w-full max-w-[200px]" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleSaveGroupName()} /><button onClick={handleSaveGroupName} className="text-green-600">✓</button></div>
                             ) : (
-                                <><h2 className="text-2xl font-black text-gray-900">{channel.name}</h2>{canEditChannel && <button id="tour-edit-channel-btn" onClick={() => setIsEditingChannelName(true)} className="p-2 text-gray-400 hover:text-[#008069]">✎</button>}</>
+                                <><h2 className="text-2xl font-black text-gray-900">{channel.name}</h2>{canEditGroup && <button id="tour-edit-group-btn" onClick={() => setIsEditingGroupName(true)} className="p-2 text-gray-400 hover:text-[#008069]">✎</button>}</>
                             )}
                         </div>
+                        <p className="text-sm font-medium text-gray-500">{po.order_number}</p>
+
                         <p className="text-sm font-medium text-gray-500">{po.order_number}</p>
                     </div>
                     <div id="tour-group-participants" className="p-6 space-y-8">
@@ -629,7 +683,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                             <div className="flex justify-between items-center mb-4"><h4 className="text-xs font-bold text-gray-400 uppercase">Participants</h4>{canAddMembers && <button id="tour-add-member-btn" onClick={handleAddMember} className="text-[10px] font-bold text-[#008069]">+ Add Member</button>}</div>
                             <div className="space-y-3">{members.map(m => (<div key={m.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-50 group"><div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold">{m.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-gray-800 truncate">{m.name}{m.id === currentUser.id && ' (You)'}</p><p className="text-[10px] text-gray-500 uppercase tracking-widest">{m.company?.name || '...'}</p></div>{canRemoveMembers && m.id !== currentUser.id && m.role !== 'ADMIN' && <button onClick={() => handleRemoveMember(m.id, m.name)} className="opacity-0 group-hover:opacity-100 text-red-400">✕</button>}</div>))}</div>
                         </div>
-                        {canDeleteChannel && <div className="pt-8 border-t"><button id="tour-delete-group-btn" onClick={handleDeleteChannel} className="w-full py-3 border-2 border-dashed border-red-100 text-red-500 text-xs font-bold uppercase rounded-xl hover:bg-red-50">Delete Group</button></div>}
+                        {canDeleteGroup && <div className="pt-8 border-t"><button id="tour-delete-group-btn" onClick={handleDeleteGroup} className="w-full py-3 border-2 border-dashed border-red-100 text-red-500 text-xs font-bold uppercase rounded-xl hover:bg-red-50">Delete Group</button></div>}
                     </div>
                 </div>
             )}

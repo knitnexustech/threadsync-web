@@ -416,6 +416,7 @@ export const api = {
         if (updates.type !== undefined) allowedUpdates.type = updates.type;
         if (updates.status !== undefined) allowedUpdates.status = updates.status;
         if (updates.vendor_id !== undefined) allowedUpdates.vendor_id = updates.vendor_id;
+        if (updates.due_date !== undefined) allowedUpdates.due_date = updates.due_date;
 
         const { data, error } = await supabase
             .from('channels')

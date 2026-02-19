@@ -74,6 +74,7 @@ export interface Channel {
   files: AttachedFile[]; // Channel-specific files (spec sheets, samples, etc.)
   last_activity_at?: string;
   last_read_at?: string; // Add this field for UI convenience
+  due_date?: string;
   created_at?: string;
 }
 

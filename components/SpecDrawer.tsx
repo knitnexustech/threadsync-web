@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Channel, AttachedFile, User } from '../types';
 import { api } from '../supabaseAPI';
 import { compressImage } from '../imageUtils';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 
 interface SpecDrawerProps {
     channel: Channel;
@@ -18,18 +19,25 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
     const [specs, setSpecs] = useState(channel.specs || []);
     const [newSpecContent, setNewSpecContent] = useState('');
     const [previewFile, setPreviewFile] = useState<AttachedFile | null>(null);
+    const queryClient = useQueryClient();
+
+    // Due Date State
+    const [isEditingDueDate, setIsEditingDueDate] = useState(false);
+    const [editedDueDate, setEditedDueDate] = useState(channel.due_date || '');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // ROLE-BASED PERMISSIONS (UI Control)
     // Based on new permission model from ROLE_PERMISSIONS_UPDATE.md
-    const canEditChannel = ['ADMIN', 'SENIOR_MERCHANDISER', 'SENIOR_MANAGER'].includes(currentUser.role);
+    const canEditGroup = ['ADMIN', 'SENIOR_MERCHANDISER', 'SENIOR_MANAGER'].includes(currentUser.role);
 
-    // Sync files and specs from props if channel changes
+    // Sync fields from props if channel changes
     useEffect(() => {
         setFiles([...(channel.files || [])]);
         setSpecs(channel.specs || []);
-    }, [channel.files, channel.specs]);
+        setEditedDueDate(channel.due_date || '');
+        setIsEditingDueDate(false);
+    }, [channel.id]); // Optimized to trigger only on channel change
 
     const [isUploading, setIsUploading] = useState(false);
 
@@ -68,6 +76,27 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
             // Force update local state
             setFiles(prev => prev.filter(f => f.id !== fileId));
         }
+    };
+
+    const editChannelMutation = useMutation({
+        mutationFn: (updates: Partial<Channel>) => api.updateChannel(currentUser, channel.id, updates),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['channels'] });
+            setIsEditingDueDate(false);
+        }
+    });
+
+    const handleSaveDueDate = () => {
+        editChannelMutation.mutate({ due_date: editedDueDate || null });
+    };
+
+    const isOverdue = (date: string | undefined) => {
+        if (!date) return false;
+        const d = new Date(date);
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        d.setHours(0, 0, 0, 0);
+        return d < now;
     };
 
     const handleRenameFile = async (file: AttachedFile) => {
@@ -122,7 +151,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                 onClick={() => setIsOpen(!isOpen)}
             >
                 <div className="flex flex-col">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Channel Specs & Files</span>
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Group Specs & Files</span>
                     <span className="font-semibold text-gray-900">{channel.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -143,7 +172,60 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
             </div>
 
             {isOpen && (
-                <div className="p-4 bg-white animate-fade-in-down border-t border-gray-100 max-h-[28vh] md:max-h-[500px] overflow-y-auto border-b-2 border-slate-100">
+                <div className="p-4 bg-white animate-fade-in-down border-t border-gray-100 max-h-[34vh] md:max-h-[500px] overflow-y-auto border-b-2 border-slate-100">
+                    {/* Due Date Management Section */}
+                    <div className="mb-1.5 p-1.5 bg-slate-50 rounded-xl border border-slate-100 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="text-[12px] font-bold text-slate-600 uppercase tracking-widest shrink-0">Due Date:</h4>
+                                {isEditingDueDate ? (
+                                    <div className="flex items-center gap-2 animate-in slide-in-from-top-1 duration-200" onClick={e => e.stopPropagation()}>
+                                        <input
+                                            type="date"
+                                            value={editedDueDate ? editedDueDate.split('T')[0] : ''}
+                                            onChange={(e) => setEditedDueDate(e.target.value)}
+                                            className="text-[12px] border-2 border-[#008069]/20 focus:border-[#008069] rounded-lg px-2 py-0.5 bg-white focus:outline-none transition-all font-bold"
+                                        />
+                                        <button
+                                            onClick={handleSaveDueDate}
+                                            disabled={editChannelMutation.isPending}
+                                            className="bg-[#008069] text-white px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-[#006a57] disabled:bg-gray-400 transition-all shrink-0"
+                                        >
+                                            {editChannelMutation.isPending ? '...' : 'Set'}
+                                        </button>
+                                        <button
+                                            onClick={() => { setIsEditingDueDate(false); setEditedDueDate(channel.due_date || ''); }}
+                                            className="text-slate-400 hover:text-slate-600 font-bold text-[10px] px-0.5"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className={`text-[14px] font-bold ${isOverdue(channel.due_date) ? 'text-red-500 underline decoration-1' : channel.due_date ? 'text-slate-800' : 'text-slate-600'}`}>
+                                            {channel.due_date
+                                                ? new Date(channel.due_date).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })
+                                                : 'Not scheduled'}
+                                        </span>
+                                        {channel.due_date && isOverdue(channel.due_date) && (
+                                            <span className="text-[12px] bg-red-100 text-red-600 px-1.5 py-0 rounded font-normal uppercase shrink-0">overdue</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            {!isEditingDueDate && canEditGroup && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setIsEditingDueDate(true); }}
+                                    className="p-1.5 hover:bg-white rounded-full transition-colors text-[#008069] shrink-0"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Tabs */}
                     <div className="flex gap-2 mb-4 border-b border-gray-200">
                         <button
@@ -178,7 +260,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                                     <div className="text-[10px] text-gray-400">
                                         Added {spec.created_at ? new Date(spec.created_at).toLocaleDateString() : 'recently'}
                                     </div>
-                                    {canEditChannel && (
+                                    {canEditGroup && (
                                         <button
                                             onClick={() => handleDeleteSpec(spec.id)}
                                             className="absolute top-2 right-2 p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
@@ -193,12 +275,12 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                             ))}
 
                             {/* Add Spec Form */}
-                            {canEditChannel ? (
+                            {canEditGroup ? (
                                 <div className="space-y-2">
                                     <textarea
                                         value={newSpecContent}
                                         onChange={(e) => setNewSpecContent(e.target.value)}
-                                        placeholder="Add production spec or note...&#10;Example: GSM: 180 g/m² - Premium quality cotton&#10;Diameter: 30 inches circular knit"
+                                        placeholder="Add production instructions...&#10;Example: GSM: 180 g/m², Diameter: 30 in&#10;or Print on front and back"
                                         className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:border-[#008069] focus:ring-1 focus:ring-[#008069] resize-none"
                                         rows={3}
                                     />
@@ -277,7 +359,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                                         </div>
 
                                         {/* Actions - Positioned to the right - RESTRICTED */}
-                                        {canEditChannel && (
+                                        {canEditGroup && (
                                             <div className="flex items-center gap-1 ml-2">
                                                 <button
                                                     onClick={(e) => {
@@ -310,7 +392,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                             </div>
 
                             {/* Upload Action - RESTRICTED */}
-                            {canEditChannel ? (
+                            {canEditGroup ? (
                                 <>
                                     <input
                                         type="file"

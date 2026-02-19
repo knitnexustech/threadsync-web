@@ -1,99 +1,77 @@
 
 import React, { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Login } from './components/Login';
 import { api } from './supabaseAPI';
-import { Sidebar } from './components/Sidebar';
-import { ChatRoom } from './components/ChatRoom';
 import { LandingPage } from './components/LandingPage';
 import { Signup } from './components/Signup';
 import { ProductTour } from './components/ProductTour';
-import { User, Channel, PurchaseOrder, Message } from './types';
+import { User, Message } from './types';
 import { saveSession, loadSession, clearSession } from './sessionUtils';
 import { supabase } from './supabaseClient';
 import { playNotificationSound, triggerVibration } from './notificationUtils';
+import { MainLayout } from './components/MainLayout';
+import { ChatRoom } from './components/ChatRoom';
+import WelcomeView from './components/WelcomeView';
 
-type ViewState = 'LANDING' | 'LOGIN' | 'SIGNUP' | 'APP';
-
-const App: React.FC = () => {
+const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user, onLogout }) => {
     const queryClient = useQueryClient();
-    const [user, setUser] = useState<User | null>(null);
-    const [selectedChannel, setSelectedChannel] = useState<{ c: Channel, p: PurchaseOrder } | null>(null);
-    const [view, setView] = useState<ViewState>('LANDING');
-    const [isRestoringSession, setIsRestoringSession] = useState(true);
+    const navigate = useNavigate();
+    const { groupId } = useParams();
 
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [showInstallPopup, setShowInstallPopup] = useState(false);
     const [runTour, setRunTour] = useState(false);
 
-    // Unified function to handle onboarding prompts (Notifications -> Install)
+    // Fetch data for the layout (needed for notifications and tour)
+    const { data: allChannels = [] } = useQuery({
+        queryKey: ['channels', user.id],
+        queryFn: () => api.getAllChannels(user),
+    });
+
+    const { data: pos = [] } = useQuery({
+        queryKey: ['pos', user.id],
+        queryFn: () => api.getPOs(user),
+    });
+
+    const { data: userCompany } = useQuery({
+        queryKey: ['company', user.company_id],
+        queryFn: () => api.getCompany(user.company_id),
+        enabled: !!user.company_id
+    });
+
+    const selectedChannel = allChannels.find(c => c.id === groupId);
+    const selectedPO = selectedChannel ? pos.find(p => p.id === selectedChannel.po_id) : null;
+
+    // Unified function to handle onboarding prompts
     const showOnboardingPrompts = () => {
-        // If tour is active, wait and retry
         if (runTour) {
             setTimeout(showOnboardingPrompts, 5000);
             return;
         }
-
-        // 1. Ask for notification permission first
         if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission().then(permission => {
-                console.log('Notification permission:', permission);
-            });
+            Notification.requestPermission();
         }
-
-        // 2. Wait 30 seconds before showing Install Prompt (as requested 25-30s)
         if (deferredPrompt) {
-            setTimeout(() => {
-                setShowInstallPopup(true);
-            }, 15000);
+            setTimeout(() => setShowInstallPopup(true), 15000);
         }
     };
 
-    // Restore session on app load - Run ONCE on mount
     useEffect(() => {
-        const initApp = async () => {
-            try {
-                const savedUser = loadSession();
-                if (savedUser) {
-                    setUser(savedUser);
-                    setView('APP');
-                    // Check if user needs onboarding
-                    const hasOnboarded = localStorage.getItem('kramiz_onboarded');
-                    if (!hasOnboarded) {
-                        setTimeout(() => setRunTour(true), 1500); // Start tour slightly after app load
-                    }
-                    // Small delay to let the app settle before asking for permissions
-                    setTimeout(showOnboardingPrompts, 3000);
-                }
-            } catch (err) {
-                console.error("Session restoration failed:", err);
-                clearSession();
-            } finally {
-                setIsRestoringSession(false);
-            }
-        };
+        const hasOnboarded = localStorage.getItem('kramiz_onboarded');
+        if (!hasOnboarded) {
+            setTimeout(() => setRunTour(true), 1500);
+        }
+        setTimeout(showOnboardingPrompts, 3000);
 
-        initApp();
-    }, []); // Only run once on mount
-
-    // Listen for install prompt
-    useEffect(() => {
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             setDeferredPrompt(e);
         });
 
-        // App Resume Listener (Refresh effect)
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                // If an upload is in progress OR user just opened the file picker, skip refresh.
-                // This prevents the global loader from unmounting the app and killing the upload.
-                if ((window as any).isKramizUploading) {
-                    console.log('Skipping background refresh: Upload or File Picker active');
-                    return;
-                }
-
-                // Silently invalidate queries in the background without showing the full-screen loader
+            if (document.visibilityState === 'visible' && !(window as any).isKramizUploading) {
                 queryClient.invalidateQueries();
             }
         };
@@ -103,9 +81,7 @@ const App: React.FC = () => {
 
     // Global Notifications & Realtime Sync
     useEffect(() => {
-        if (!user || view !== 'APP') return;
-
-        console.log('Initializing Global Realtime Listener for user:', user.id);
+        if (!user) return;
 
         const globalMsgSubscription = supabase
             .channel('global-messages')
@@ -115,30 +91,17 @@ const App: React.FC = () => {
                 table: 'messages',
             }, async (payload) => {
                 const newMsg = payload.new as Message;
+                if (newMsg.user_id === user.id) return;
 
-                // 1. Basic filtering: Don't notify if it's our own message or a system update
-                if (newMsg.user_id === user.id || newMsg.is_system_update) return;
+                // Avoid duplicate notification if current channel is active
+                if (groupId === newMsg.channel_id) return;
 
-                // 2. Avoid duplicate notification if ChatRoom is already handling it
-                if (selectedChannel && newMsg.channel_id === selectedChannel.c.id) {
-                    console.log('Skipping global notification as channel is active');
-                    return;
-                }
-
-                // 3. Play Sound/Vibration
                 playNotificationSound();
                 triggerVibration();
 
-                // 4. Show Notification (Only if user is not actively looking at the app)
                 if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
-                    // Try to get channel info for better notification
-                    const { data: channelData } = await supabase
-                        .from('channels')
-                        .select('name')
-                        .eq('id', newMsg.channel_id)
-                        .single();
-
-                    const title = channelData ? `New Message in ${channelData.name}` : 'New Message';
+                    const { data: ch } = await supabase.from('channels').select('name').eq('id', newMsg.channel_id).single();
+                    const title = ch ? `New Message in ${ch.name}` : 'New Message';
 
                     if ('serviceWorker' in navigator) {
                         const reg = await navigator.serviceWorker.ready;
@@ -146,7 +109,7 @@ const App: React.FC = () => {
                             body: newMsg.content,
                             icon: '/Kramiz%20app%20icon.png',
                             badge: '/favicon.png',
-                            tag: newMsg.channel_id, // Group by channel
+                            tag: newMsg.channel_id,
                             renotify: true
                         } as any);
                     } else {
@@ -159,14 +122,130 @@ const App: React.FC = () => {
         return () => {
             supabase.removeChannel(globalMsgSubscription);
         };
-    }, [user, view, selectedChannel]);
+    }, [user, groupId]);
+
+    return (
+        <MainLayout
+            user={user}
+            handleLogout={onLogout}
+            deferredPrompt={deferredPrompt}
+            setDeferredPrompt={setDeferredPrompt}
+            setRunTour={setRunTour}
+            runTour={runTour}
+        >
+            {groupId ? (
+                selectedChannel && selectedPO ? (
+                    <ChatRoom
+                        currentUser={user}
+                        channel={selectedChannel}
+                        po={selectedPO}
+                        onBack={() => navigate('/')}
+                    />
+                ) : (
+                    <div className="flex-1 flex items-center justify-center bg-white">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#008069]"></div>
+                    </div>
+                )
+            ) : (
+                <WelcomeView />
+            )}
+
+            {/* Premium Installation Prompt */}
+            {showInstallPopup && deferredPrompt && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] md:bg-transparent md:items-end md:justify-start md:p-8">
+                    <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
+                        <div className="flex items-start gap-4">
+                            <div className="h-16 w-16 bg-gray-50 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-inner">
+                                <img src="/Kramiz%20app%20icon.png" alt="Kramiz" className="w-10 h-10 object-contain" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-xl font-black text-gray-900 leading-tight">Install Kramiz (Beta)</h3>
+                                <p className="text-sm text-gray-500 mt-1 leading-relaxed">Add Kramiz to your home screen for high-speed tracking.</p>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex gap-3">
+                            <button
+                                onClick={() => {
+                                    deferredPrompt.prompt();
+                                    deferredPrompt.userChoice.then(() => {
+                                        setDeferredPrompt(null);
+                                        setShowInstallPopup(false);
+                                    });
+                                }}
+                                className="flex-1 py-3 bg-[#008069] text-white rounded-xl font-bold text-sm hover:bg-[#006a57] shadow-lg transition-all active:scale-95"
+                            >
+                                Install Now
+                            </button>
+                            <button onClick={() => setShowInstallPopup(false)} className="px-5 py-3 bg-gray-50 text-gray-400 rounded-xl font-bold text-sm hover:bg-gray-100 transition-all font-blanka">Later</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <ProductTour
+                currentUser={user}
+                run={runTour}
+                onFinish={() => {
+                    setRunTour(false);
+                    localStorage.setItem('kramiz_onboarded', 'true');
+                }}
+            />
+        </MainLayout>
+    );
+};
+
+const AppRoutes: React.FC<{
+    user: User | null;
+    handleDemoLogin: () => Promise<void>;
+    handleLogin: (loggedInUser: User, rememberMe: boolean) => void;
+    handleLogout: () => void;
+}> = ({ user, handleDemoLogin, handleLogin, handleLogout }) => {
+    const navigate = useNavigate();
+
+    return (
+        <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage onDemoLogin={handleDemoLogin} />} />
+            <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login onLogin={handleLogin} onBack={() => navigate('/')} />} />
+            <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <Signup onBack={() => navigate('/')} onSignupSuccess={() => navigate('/login')} />} />
+
+            {/* Protected App Routes */}
+            <Route path="/dashboard" element={user ? <AuthenticatedApp user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />} />
+            <Route path="/group/:groupId" element={user ? <AuthenticatedApp user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />} />
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+    );
+};
+
+const App: React.FC = () => {
+    const [user, setUser] = useState<User | null>(null);
+    const [isRestoringSession, setIsRestoringSession] = useState(true);
+
+    useEffect(() => {
+        const initApp = async () => {
+            try {
+                const savedUser = loadSession();
+                if (savedUser) setUser(savedUser);
+            } catch (err) {
+                console.error("Session restoration failed:", err);
+                clearSession();
+            } finally {
+                setIsRestoringSession(false);
+            }
+        };
+        initApp();
+    }, []);
 
     const handleLogin = (loggedInUser: User, rememberMe: boolean) => {
-        saveSession(loggedInUser, rememberMe); // Save to storage
+        saveSession(loggedInUser, rememberMe);
         setUser(loggedInUser);
-        setView('APP');
+    };
 
-        showOnboardingPrompts();
+    const handleLogout = () => {
+        clearSession();
+        setUser(null);
     };
 
     const handleDemoLogin = async () => {
@@ -174,33 +253,17 @@ const App: React.FC = () => {
         if (mask) mask.style.display = 'flex';
         try {
             const { user: demoUser } = await api.login('9876543210', '1234');
-            // Ensure Order 505 exists for this demo user
             await api.ensureDemoData(demoUser);
-
             saveSession(demoUser, true);
             setUser(demoUser);
-            setView('APP');
-            setRunTour(true);
         } catch (err) {
             console.error('Demo login failed:', err);
-            alert('Demo is currently unavailable. Please try again later.');
+            alert('Demo is currently unavailable.');
         } finally {
             if (mask) mask.style.display = 'none';
         }
     };
 
-    const handleLogout = () => {
-        clearSession(); // Clear from storage
-        setUser(null);
-        setSelectedChannel(null);
-        setView('LANDING');
-    };
-
-    const handleSignupSuccess = () => {
-        setView('LOGIN');
-    };
-
-    // Show loading screen while restoring session or resuming
     if (isRestoringSession) {
         return (
             <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center">
@@ -215,131 +278,15 @@ const App: React.FC = () => {
         );
     }
 
-    if (view === 'LANDING') {
-        return <LandingPage onNavigate={(page) => setView(page)} onDemoLogin={handleDemoLogin} />;
-    }
-
-    if (view === 'LOGIN') {
-        return <Login onLogin={handleLogin} onBack={() => setView('LANDING')} />;
-    }
-
-    if (view === 'SIGNUP') {
-        return <Signup onBack={() => setView('LANDING')} onSignupSuccess={handleSignupSuccess} />;
-    }
-
-    if (!user) {
-        // Fallback
-        setView('LANDING');
-        return null;
-    }
-
-    // Responsive logic: 
-    // Desktop: Show Sidebar and Chat side-by-side.
-    // Mobile: Show Sidebar. If channel selected, overlay Chat (or switch view).
-
     return (
-        <div className="flex h-screen overflow-hidden bg-[#f0f2f5]">
-            {/* Sidebar Area: Visible on mobile if no chat selected, always visible on Desktop */}
-            <div className={`${selectedChannel ? 'hidden md:block' : 'w-full'} md:w-auto h-full`}>
-                <Sidebar
-                    currentUser={user}
-                    selectedChannelId={selectedChannel?.c.id}
-                    onSelectChannel={(c, p) => setSelectedChannel({ c, p })}
-                    onLogout={handleLogout}
-                    installPrompt={deferredPrompt}
-                    onInstallApp={() => {
-                        if (deferredPrompt) {
-                            deferredPrompt.prompt();
-                            deferredPrompt.userChoice.then(() => setDeferredPrompt(null));
-                        }
-                    }}
-                    onTakeTour={() => setRunTour(true)}
-                    isTourActive={runTour}
-                />
-            </div>
-
-            {/* Chat Area: Visible on mobile if chat selected, always visible on Desktop */}
-            <div className={`flex-1 h-full relative ${!selectedChannel ? 'hidden md:flex' : 'flex'}`}>
-                {selectedChannel ? (
-                    <ChatRoom
-                        currentUser={user}
-                        channel={selectedChannel.c}
-                        po={selectedChannel.p}
-                        onBack={() => setSelectedChannel(null)}
-                    />
-                ) : (
-                    // Empty State (Desktop only)
-                    <div className="flex-1 bg-white flex flex-col items-center justify-center text-center p-6">
-                        <div className="h-20 w-48 mb-8">
-                            <img src="/logo_v2.png" alt="Kramiz" className="w-full h-full object-contain" />
-                        </div>
-                        <h1 className="text-5xl font-black tracking-[0.15em] text-gray-900 mb-4 font-blanka uppercase">
-                            Kramiz (Beta) Web
-                        </h1>
-                        <p className="text-xl text-gray-500 max-w-md leading-relaxed">
-                            Select an order to start simplifying your follow-ups. <br />
-                            <span className="text-sm font-medium text-gray-400">Everything you need from order to shipment.</span>
-                        </p>
-                        <div className="mt-12 flex items-center gap-2 text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] border-t border-gray-50 pt-8">
-                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                            </svg>
-                            End-to-end encrypted
-                        </div>
-                    </div>
-                )}
-            </div>
-            {/* Premium Installation Prompt */}
-            {showInstallPopup && deferredPrompt && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] md:bg-transparent md:items-end md:justify-start md:p-8">
-                    <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
-                        <div className="flex items-start gap-4">
-                            <div className="h-16 w-16 bg-gray-50 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-inner">
-                                <img src="/Kramiz%20app%20icon.png" alt="Kramiz" className="w-10 h-10 object-contain" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h3 className="text-xl font-black text-gray-900 leading-tight">Install Kramiz (Beta)</h3>
-                                <p className="text-sm text-gray-500 mt-1 leading-relaxed">Add Kramiz (Beta) to your home screen for high-speed tracking and instant follow-ups.</p>
-                            </div>
-                        </div>
-                        <div className="mt-6 flex gap-3">
-                            <button
-                                onClick={() => {
-                                    deferredPrompt.prompt();
-                                    deferredPrompt.userChoice.then((choice: any) => {
-                                        if (choice.outcome === 'accepted') {
-                                            console.log('User accepted the install prompt');
-                                        }
-                                        setDeferredPrompt(null);
-                                        setShowInstallPopup(false);
-                                    });
-                                }}
-                                className="flex-1 py-3 bg-[#008069] text-white rounded-xl font-bold text-sm hover:bg-[#006a57] shadow-lg shadow-green-900/10 transition-all active:scale-95"
-                            >
-                                Install Now
-                            </button>
-                            <button
-                                onClick={() => setShowInstallPopup(false)}
-                                className="px-5 py-3 bg-gray-50 text-gray-400 rounded-xl font-bold text-sm hover:bg-gray-100 hover:text-gray-600 transition-all font-blanka"
-                            >
-                                Later
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {user && (
-                <ProductTour
-                    currentUser={user}
-                    run={runTour}
-                    onFinish={() => {
-                        setRunTour(false);
-                        localStorage.setItem('kramiz_onboarded', 'true');
-                    }}
-                />
-            )}
-        </div>
+        <BrowserRouter>
+            <AppRoutes
+                user={user}
+                handleDemoLogin={handleDemoLogin}
+                handleLogin={handleLogin}
+                handleLogout={handleLogout}
+            />
+        </BrowserRouter>
     );
 };
 

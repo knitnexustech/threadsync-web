@@ -7,8 +7,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface SidebarProps {
     currentUser: User;
-    onSelectChannel: (channel: Channel, po: PurchaseOrder) => void;
-    selectedChannelId?: string;
+    onSelectGroup: (channel: Channel, po: PurchaseOrder) => void;
+    selectedGroupId?: string;
     onLogout: () => void;
     installPrompt?: any;
     onInstallApp?: () => void;
@@ -16,7 +16,7 @@ interface SidebarProps {
     isTourActive?: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, selectedChannelId, onLogout, installPrompt, onInstallApp, onTakeTour, isTourActive }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, selectedGroupId, onLogout, installPrompt, onInstallApp, onTakeTour, isTourActive }) => {
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<'ORDERS' | 'PARTNERS'>('ORDERS');
 
@@ -71,8 +71,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
         }
     });
 
-    const createChannelMutation = useMutation({
-        mutationFn: (data: typeof newChannelData) => api.createChannel(currentUser, modalState.data.poId, data.name, data.vendorId),
+    const createGroupMutation = useMutation({
+        mutationFn: (data: typeof newGroupData) => api.createChannel(currentUser, modalState.data.poId, data.name, data.vendorId),
         onSuccess: () => {
             closeModal();
             handleRefresh();
@@ -117,13 +117,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
     const [showSettings, setShowSettings] = useState(false);
 
     const [modalState, setModalState] = useState<{
-        type: 'NONE' | 'NEW_PO' | 'ADD_CHANNEL' | 'SUPPLIERS' | 'TEAM' | 'EDIT_PO' | 'DELETE_PO' | 'CHANGE_PASSCODE' | 'EDIT_COMPANY' | 'HOW_TO_INSTALL' | 'DELETE_ORGANIZATION';
+        type: 'NONE' | 'NEW_PO' | 'ADD_GROUP' | 'SUPPLIERS' | 'TEAM' | 'EDIT_PO' | 'DELETE_PO' | 'CHANGE_PASSCODE' | 'EDIT_COMPANY' | 'HOW_TO_INSTALL' | 'DELETE_ORGANIZATION';
         data?: any;
     }>({ type: 'NONE' });
 
     // Form States
     const [newPOData, setNewPOData] = useState({ orderNo: '', styleNo: '', selectedTeamMembers: [] as string[] });
-    const [newChannelData, setNewChannelData] = useState({ name: '', vendorId: '' });
+    const [newGroupData, setNewGroupData] = useState({ name: '', vendorId: '' });
     const [editPOData, setEditPOData] = useState({ orderNo: '', styleNo: '', status: 'PENDING' });
     const [editCompanyName, setEditCompanyName] = useState('');
 
@@ -148,6 +148,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
     // UI state for search and expansion
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [expandedPOs, setExpandedPOs] = useState<Record<string, boolean>>({});
+
+    const isOverdue = (date: string | undefined) => {
+        if (!date) return false;
+        const d = new Date(date);
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        d.setHours(0, 0, 0, 0);
+        return d < now;
+    };
 
     // Toggle PO expansion
     const togglePO = (id: string) => {
@@ -186,13 +195,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
 
     // Refs
     const supplierComboboxRef = useRef<HTMLDivElement>(null);
-    const prevSelectedId = useRef<string | undefined>(selectedChannelId);
+    const prevSelectedId = useRef<string | undefined>(selectedGroupId);
 
     // ROLE-BASED PERMISSIONS
     const canCreatePO = hasPermission(currentUser.role, 'CREATE_PO') && !isVendor;
     const canEditPO = hasPermission(currentUser.role, 'EDIT_PO');
     const canDeletePO = hasPermission(currentUser.role, 'DELETE_PO');
-    const canCreateChannel = hasPermission(currentUser.role, 'CREATE_CHANNEL') && !isVendor;
+    const canCreateGroup = hasPermission(currentUser.role, 'CREATE_CHANNEL') && !isVendor;
     const canManageTeam = currentUser.role === 'ADMIN';
     const canManageSuppliers = !isVendor;
 
@@ -223,28 +232,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
     }, [isVendor]);
 
     useEffect(() => {
-        if (!selectedChannelId && prevSelectedId.current) {
+        if (!selectedGroupId && prevSelectedId.current) {
             queryClient.invalidateQueries({ queryKey: ['pos'] });
             queryClient.invalidateQueries({ queryKey: ['channels'] });
         }
-        prevSelectedId.current = selectedChannelId;
-    }, [selectedChannelId, queryClient]);
+        prevSelectedId.current = selectedGroupId;
+    }, [selectedGroupId, queryClient]);
 
     const handleCreatePO = async () => {
         if (!newPOData.orderNo || !newPOData.styleNo) return;
         createPOMutation.mutate(newPOData);
     };
 
-    const handleCreateChannel = async () => {
-        if (!newChannelData.name.trim()) {
+    const handleCreateGroup = async () => {
+        if (!newGroupData.name.trim()) {
             alert("Please enter a group name (e.g. Knitting, Printing).");
             return;
         }
-        if (!newChannelData.vendorId) {
+        if (!newGroupData.vendorId) {
             alert("Please select a supplier for this group. Use the 'Overview' group for internal team chat.");
             return;
         }
-        createChannelMutation.mutate(newChannelData);
+        createGroupMutation.mutate(newGroupData);
     };
 
     const handleAddVendor = async () => {
@@ -334,9 +343,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
 
     const openModal = async (type: typeof modalState.type, data?: any) => {
         setModalState({ type, data });
-        if (type === 'ADD_CHANNEL' || type === 'SUPPLIERS') {
+        if (type === 'ADD_GROUP' || type === 'SUPPLIERS') {
             setVendorsList(await api.getVendors());
-            if (type === 'ADD_CHANNEL') setNewChannelData({ name: '', vendorId: '' });
+            if (type === 'ADD_GROUP') setNewGroupData({ name: '', vendorId: '' });
             if (type === 'SUPPLIERS') { setNewVendor({ name: '', phone: '', adminName: '' }); setInviteLink(null); }
         }
         if (type === 'TEAM') setTeamList(await api.getTeamMembers(currentUser));
@@ -441,7 +450,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                             </div>
                                             <div className="bg-gray-50/50 border-t border-gray-100 pb-2">
                                                 {ghostChannels.map((ch, idx) => (
-                                                    <div key={ch.id} id={idx === 0 ? "tour-group-item" : undefined} onClick={() => onSelectChannel(ch, ghostPO)} className="px-5 py-3 flex items-center gap-3 hover:bg-white transition-colors cursor-pointer border-b border-gray-50 last:border-0">
+                                                    <div key={ch.id} id={idx === 0 ? "tour-group-item" : undefined} onClick={() => onSelectGroup(ch, ghostPO)} className="px-5 py-3 flex items-center gap-3 hover:bg-white transition-colors cursor-pointer border-b border-gray-50 last:border-0">
                                                         <div className={`w-3 h-3 rounded-full flex-shrink-0 ${ch.name === 'OVERVIEW' ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
                                                         <div className="flex-1 min-w-0">
                                                             <p className="text-xs font-bold text-gray-700">{ch.name}</p>
@@ -503,17 +512,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                                         key={ch.id}
                                                         id={idx === 0 ? "tour-group-item" : undefined}
                                                         onClick={() => {
-                                                            onSelectChannel(ch, po);
+                                                            onSelectGroup(ch, po);
                                                             api.markChannelAsRead(currentUser, ch.id);
                                                             queryClient.invalidateQueries({ queryKey: ['channels'] });
                                                         }}
                                                         style={{ animationDelay: `${idx * 100}ms` }}
-                                                        className={`px-5 py-4 rounded cursor-pointer flex items-center relative group transition-all duration-300 animate-slide-in hover:bg-gray-200 hover:shadow-sm ${selectedChannelId === ch.id ? 'bg-white shadow-inner' : ''}`}
+                                                        className={`px-4 py-2 rounded cursor-pointer flex items-center relative group transition-all duration-300 animate-slide-in hover:bg-gray-200 hover:shadow-sm ${selectedGroupId === ch.id ? 'bg-white shadow-inner' : ''}`}
                                                     >
                                                         {(ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at)) && <div className="absolute left-3 w-2.5 h-2.5 bg-[#00a884] rounded-full shadow-md animate-pulse"></div>}
                                                         <div className="flex-1 ml-4">
                                                             <div className="flex justify-between items-center gap-3">
-                                                                <span className={`text-[16px] truncate transition-colors ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-black text-gray-900' : 'font-regular text-gray-600 group-hover:text-gray-900'}`}>{ch.name}</span>
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <span className={`text-[16px] truncate transition-colors ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-black text-gray-900' : 'font-regular text-gray-600 group-hover:text-gray-900'}`}>{ch.name}</span>
+                                                                    {ch.due_date && (
+                                                                        <span className={`text-[11px] font-normal uppercase tracking-tight ${isOverdue(ch.due_date) ? 'text-red-500' : 'text-gray-400'}`}>
+                                                                            Due: {new Date(ch.due_date).toLocaleDateString([], { day: '2-digit', month: 'short' })}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <div className="flex items-center gap-2">
                                                                     <span className={`text-[12px] font-light px-2 py-0.5 rounded-md uppercase tracking-tighter shadow-sm ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span>
                                                                     <svg className="w-4 h-4 text-gray-400 group-hover:text-[#008069] transition-all duration-300 transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
@@ -522,9 +538,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                                                         </div>
                                                     </div>
                                                 ))}
-                                                {!isCompleted && canCreateChannel && (
+                                                {!isCompleted && canCreateGroup && (
                                                     <div className="px-4 py-2 rounded border-t border-gray-50">
-                                                        <button onClick={() => openModal('ADD_CHANNEL', { poId: po.id })} className="w-full py-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:bg-blue-50 rounded-lg flex items-center justify-center gap-1.5 transition-all">
+                                                        <button onClick={() => openModal('ADD_GROUP', { poId: po.id })} className="w-full py-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:bg-blue-50 rounded-lg flex items-center justify-center gap-1.5 transition-all">
                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>Add Group
                                                         </button>
                                                     </div>
@@ -540,21 +556,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     <div className="pb-2 px-2 space-y-2 pt-.5">
                         {partners.filter(p => p.name.toLowerCase().includes(globalSearchQuery.toLowerCase())).length === 0 && <div className="p-4 text-center text-gray-400 text-sm">No matching {getPartnerLabel().toLowerCase()} found.</div>}
                         {partners.filter(p => p.name.toLowerCase().includes(globalSearchQuery.toLowerCase())).map(partner => (
-                            <div key={partner.id} className="rounded-xl border border-gray-400 overflow-hidden bg-white shadow-sm">
-                                <div className="px-4 py-2 bg-gray-300/500 font-bold text-[12px] text-gray-500 uppercase tracking-widest border-b border-gray-400">{partner.name}</div>
+                            <div key={partner.id} className="mb-4 mx-2 rounded-xl border border-gray-200 overflow-hidden bg-white shadow-md ring-1 ring-gray-200">
+                                <div className="px-4 py-2 bg-slate-50 font-bold text-[11px] text-slate-500 uppercase tracking-widest border-b border-gray-200">{partner.name}</div>
                                 {allChannels.filter(c => (isVendor && pos.find(p => p.id === c.po_id)?.manufacturer_id === partner.id && c.vendor_id === currentUser.company_id) || (!isVendor && c.vendor_id === partner.id && pos.find(p => p.id === c.po_id)?.manufacturer_id === currentUser.company_id)).map(ch => {
                                     const parentPO = pos.find(p => p.id === ch.po_id);
                                     if (!parentPO) return null;
                                     return (
-                                        <div key={ch.id} onClick={() => { onSelectChannel(ch, parentPO); api.markChannelAsRead(currentUser, ch.id); queryClient.invalidateQueries({ queryKey: ['channels'] }); }} className={`px-4 py-3 cursor-pointer hover:bg-[#f5f6f6] flex items-center relative group border-b border-gray-50 last:border-b-0 ${selectedChannelId === ch.id ? 'bg-[#f0f2f5]' : ''}`}>
-                                            {(ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at)) && <div className="absolute left-3 w-2.5 h-2.5 bg-[#00a884] rounded-full shadow-sm"></div>}
-                                            <div className="flex-1 ml-6">
-                                                <div className="flex justify-between items-center gap-1">
-                                                    <span className={`text-[16px] truncate ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-bold text-gray-900' : 'font-regular text-gray-700'}`}>{ch.name} ({parentPO.order_number})</span>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className={`text-[10px] font-light px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${ch.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700')}`}>{ch.status}</span>
-                                                        <svg className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
-                                                    </div>
+                                        <div key={ch.id} onClick={() => { onSelectGroup(ch, parentPO); api.markChannelAsRead(currentUser, ch.id); queryClient.invalidateQueries({ queryKey: ['channels'] }); }} className={`px-4 py-2.5 cursor-pointer hover:bg-gray-50 flex items-center relative group border-b border-gray-100 last:border-b-0 ${selectedGroupId === ch.id ? 'bg-[#f0f2f5]' : ''}`}>
+                                            {(ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at)) && <div className="absolute left-1.5 w-2 h-2 bg-[#00a884] rounded-full shadow-sm"></div>}
+                                            <div className="flex-1 flex justify-between items-center min-w-0">
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className={`text-[15px] truncate ${ch.last_activity_at && ch.last_read_at && new Date(ch.last_activity_at) > new Date(ch.last_read_at) ? 'font-bold text-gray-900' : 'font-regular text-gray-700'}`}>{ch.name} ({parentPO.order_number})</span>
+                                                    {ch.due_date && (
+                                                        <span className={`text-[10px] font-normal uppercase tracking-tight ${isOverdue(ch.due_date) ? 'text-red-500' : 'text-gray-400'}`}>
+                                                            Due: {new Date(ch.due_date).toLocaleDateString([], { day: '2-digit', month: 'short' })}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <span className={`text-[10px] font-normal px-2 py-0.5 rounded-full uppercase tracking-tighter shadow-sm border ${ch.status === 'COMPLETED' ? 'bg-green-50 text-green-700 border-green-100' : (ch.status === 'IN_PROGRESS' || ch.status === 'ACTIVE' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-yellow-50 text-yellow-700 border-yellow-100')}`}>{ch.status}</span>
+                                                    <svg className="w-4 h-4 text-gray-300 group-hover:text-[#008069] transition-all transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                                 </div>
                                             </div>
                                         </div>
@@ -637,17 +658,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
                     <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Style Type</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. T-Shirt..." value={newPOData.styleNo} onChange={e => setNewPOData({ ...newPOData, styleNo: e.target.value })} /></div>
                 </div>
             </Modal>
-            <Modal isOpen={modalState.type === 'ADD_CHANNEL'} onClose={closeModal} title="Add Supplier Group" footer={<button onClick={handleCreateChannel} disabled={createChannelMutation.isPending} className="bg-[#008069] text-white px-6 py-2 rounded text-sm font-bold shadow-md hover:bg-[#006a57] disabled:bg-gray-300">{createChannelMutation.isPending ? 'Adding...' : 'Add Group'}</button>}>
+            <Modal isOpen={modalState.type === 'ADD_GROUP'} onClose={closeModal} title="Add Supplier Group" footer={<button onClick={handleCreateGroup} disabled={createGroupMutation.isPending} className="bg-[#008069] text-white px-6 py-2 rounded text-sm font-bold shadow-md hover:bg-[#006a57] disabled:bg-gray-300">{createGroupMutation.isPending ? 'Adding...' : 'Add Group'}</button>}>
                 <div className="space-y-4 pb-16">
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Group Name</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. Knitting..." value={newChannelData.name} onChange={e => setNewChannelData({ ...newChannelData, name: e.target.value })} /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-tight">Group Name</label><input type="text" className="w-full border rounded px-3 py-2 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="e.g. Knitting..." value={newGroupData.name} onChange={e => setNewGroupData({ ...newGroupData, name: e.target.value })} /></div>
                     <div className="relative">
                         <label className="block text-sm font-bold text-gray-700 uppercase tracking-tight mb-1">Assign Supplier</label>
                         <div className="relative" ref={supplierComboboxRef}>
-                            <input type="text" className="w-full border rounded px-3 py-2 pr-8 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="Search supplier..." value={supplierSearchQuery || vendorsList.find(v => v.id === newChannelData.vendorId)?.name || ''} onChange={(e) => { setSupplierSearchQuery(e.target.value); setIsSupplierDropdownOpen(true); if (!e.target.value) setNewChannelData({ ...newChannelData, vendorId: '' }); }} onFocus={() => setIsSupplierDropdownOpen(true)} />
+                            <input type="text" className="w-full border rounded px-3 py-2 pr-8 text-sm bg-white border-gray-300 focus:outline-none focus:border-[#008069]" placeholder="Search supplier..." value={supplierSearchQuery || vendorsList.find(v => v.id === newGroupData.vendorId)?.name || ''} onChange={(e) => { setSupplierSearchQuery(e.target.value); setIsSupplierDropdownOpen(true); if (!e.target.value) setNewGroupData({ ...newGroupData, vendorId: '' }); }} onFocus={() => setIsSupplierDropdownOpen(true)} />
                             {isSupplierDropdownOpen && (
                                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto">
                                     {vendorsList.filter(v => v.name.toLowerCase().includes(supplierSearchQuery.toLowerCase()) || ((v as any).adminPhone || '').includes(supplierSearchQuery)).map(v => (
-                                        <div key={v.id} className={`px-3 py-2 text-m cursor-pointer hover:bg-gray-100 ${newChannelData.vendorId === v.id ? 'bg-[#008069]/10 text-[#008069] font-medium' : 'text-gray-700'}`} onClick={() => { setNewChannelData({ ...newChannelData, vendorId: v.id }); setSupplierSearchQuery(''); setIsSupplierDropdownOpen(false); }}>
+                                        <div key={v.id} className={`px-3 py-2 text-m cursor-pointer hover:bg-gray-100 ${newGroupData.vendorId === v.id ? 'bg-[#008069]/10 text-[#008069] font-medium' : 'text-gray-700'}`} onClick={() => { setNewGroupData({ ...newGroupData, vendorId: v.id }); setSupplierSearchQuery(''); setIsSupplierDropdownOpen(false); }}>
                                             <div className="flex flex-col"><span className="font-semibold">{v.name}</span><span className="text-[12px] text-gray-500">Admin: {(v as any).adminName} • {(v as any).adminPhone}</span></div>
                                         </div>
                                     ))}
