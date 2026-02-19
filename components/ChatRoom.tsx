@@ -605,6 +605,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                 </div>
 
                 <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        multiple
+                    />
                     {!isRecording ? (
                         <>
                             <button id="tour-attach-btn" type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0">
