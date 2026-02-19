@@ -23,6 +23,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     const [showAttachMenu, setShowAttachMenu] = useState(false);
     const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
     const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+
+    // Voice Note States
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+    const recordingTimerRef = useRef<any>(null);
+    const chunksRef = useRef<Blob[]>([]);
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
@@ -95,6 +102,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         });
     };
 
+    // Mark as read when entering the room
+    useEffect(() => {
+        api.markChannelAsRead(currentUser, channel.id).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['channels'] });
+        });
+    }, [channel.id, currentUser, queryClient]);
+
     // Realtime Subscription
     useEffect(() => {
         const channelSubscription = supabase
@@ -140,6 +154,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
 
                     if (document.visibilityState === 'hidden') {
                         showNotification(`New Message in ${channel.name}`, newMsg.content);
+                    } else {
+                        // If user is already in the room, mark as read immediately in DB
+                        api.markChannelAsRead(currentUser, channel.id);
+                        queryClient.invalidateQueries({ queryKey: ['channels'] });
                     }
                 }
             })
@@ -204,10 +222,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     });
 
     const handleRefresh = () => {
-        const mask = document.getElementById('global-loader');
-        if (mask) mask.style.display = 'flex';
         queryClient.invalidateQueries();
-        setTimeout(() => window.location.reload(), 500);
     };
 
     const updateStatusMutation = useMutation({
@@ -291,6 +306,89 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
 
     const [isUploading, setIsUploading] = useState(false);
 
+    // Voice Recording Logic
+    const startRecording = async () => {
+        try {
+            // Check if mediaDevices is supported
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Your browser does not support audio recording.");
+                return;
+            }
+
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            setMediaRecorder(recorder);
+            chunksRef.current = [];
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunksRef.current.push(e.data);
+            };
+
+            recorder.onstop = async () => {
+                const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+                if (chunksRef.current.length > 0) {
+                    await handleVoiceUpload(audioBlob);
+                }
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            recorder.start();
+            setIsRecording(true);
+            setRecordingTime(0);
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
+        } catch (err: any) {
+            console.error("Microphone Error:", err);
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                alert("Microphone access denied. Please enable microphone permissions in your browser settings to send voice notes.");
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                alert("No microphone detected. Please connect a microphone and try again.");
+            } else {
+                alert("Could not start recording: " + err.message);
+            }
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorder && isRecording) {
+            mediaRecorder.stop();
+            setIsRecording(false);
+            clearInterval(recordingTimerRef.current);
+        }
+    };
+
+    const cancelRecording = () => {
+        if (mediaRecorder && isRecording) {
+            chunksRef.current = []; // Clear chunks so onstop doesn't upload
+            mediaRecorder.stop();
+            setIsRecording(false);
+            clearInterval(recordingTimerRef.current);
+        }
+    };
+
+    const handleVoiceUpload = async (blob: Blob) => {
+        setIsUploading(true);
+        try {
+            (window as any).isKramizUploading = true;
+            const fileName = `voice_${Date.now()}.webm`;
+            const file = new File([blob], fileName, { type: 'audio/webm' });
+            const publicUrl = await api.uploadFile(file);
+            sendMessageMutation.mutate({ content: `[AUDIO] ${publicUrl}` });
+        } catch (err: any) {
+            alert("Voice note upload failed: " + err.message);
+        } finally {
+            setIsUploading(false);
+            (window as any).isKramizUploading = false;
+        }
+    };
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const selectedFiles = Array.from(e.target.files);
@@ -338,6 +436,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             const url = parts[0].replace('[FILE]', '').trim();
             const name = parts[1] ? parts[1].trim() : 'Document';
             return <div className="mt-1"><a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors group"><div className="h-10 w-10 bg-red-100 text-red-500 rounded flex items-center justify-center font-bold text-xs">FILE</div><div className="flex-1 min-w-0"><div className="text-sm font-medium text-gray-800 truncate">{name}</div><div className="text-[10px] text-gray-500 uppercase">Download</div></div></a></div>;
+        }
+        if (content.startsWith('[AUDIO]')) {
+            const url = content.replace('[AUDIO]', '').trim();
+            return (
+                <div className="mt-2 w-64 max-w-full">
+                    <audio src={url} controls className="w-full h-8" />
+                </div>
+            );
         }
         return <div className="text-gray-900 break-words">{content}</div>;
     }
@@ -446,51 +552,62 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                     <div ref={messagesEndRef} />
                 </div>
 
-                <form onSubmit={handleSend} className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative">
-                    <button id="tour-attach-btn" type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg></button>
-                    {showAttachMenu && (
-                        <div className="absolute bottom-12 left-0 bg-white shadow-2xl rounded-2xl p-1 w-48 z-50 border border-gray-100 overflow-hidden divide-y divide-gray-50">
-                            <button
-                                type="button"
-                                disabled={isUploading}
-                                onClick={() => handleAttachmentOption('Image')}
-                                className="w-full flex items-center gap-3 p-3 hover:bg-green-50 text-left transition-colors disabled:opacity-50"
-                            >
-                                <div className="h-8 w-8 rounded-lg bg-green-100 text-[#008069] flex items-center justify-center">
-                                    {isUploading ? <div className="w-4 h-4 border-2 border-[#008069] border-t-transparent animate-spin rounded-full"></div> : '📷'}
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-black text-gray-800 tracking-tight">Images</span>
-                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Photos / Art</span>
-                                </div>
+                <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative">
+                    {!isRecording ? (
+                        <>
+                            <button id="tour-attach-btn" type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                             </button>
-                            <button
-                                type="button"
-                                disabled={isUploading}
-                                onClick={() => handleAttachmentOption('Document')}
-                                className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 text-left transition-colors disabled:opacity-50"
-                            >
-                                <div className="h-8 w-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
-                                    {isUploading ? <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent animate-spin rounded-full"></div> : '📄'}
+
+                            {showAttachMenu && (
+                                <div className="absolute bottom-14 left-4 bg-white shadow-2xl rounded-2xl p-1 w-52 z-50 border border-gray-100 overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
+                                    <button
+                                        type="button"
+                                        disabled={isUploading}
+                                        onClick={() => handleAttachmentOption('All')}
+                                        className="w-full flex items-center gap-3 p-3 hover:bg-green-50 text-left transition-colors disabled:opacity-50"
+                                    >
+                                        <div className="h-10 w-10 rounded-xl bg-green-100 text-[#008069] flex items-center justify-center text-xl">
+                                            {isUploading ? <div className="w-5 h-5 border-2 border-[#008069] border-t-transparent animate-spin rounded-full"></div> : '📁'}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-black text-gray-800 tracking-tight">Gallery & Files</span>
+                                            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Photos / Tech Packs</span>
+                                        </div>
+                                    </button>
                                 </div>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-black text-gray-800 tracking-tight">Documents</span>
-                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Tech Packs</span>
-                                </div>
-                            </button>
+                            )}
+
+                            <input id="tour-chat-input" type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend(e)} placeholder="Type a message..." className="flex-1 py-2.5 px-4 rounded-full border-none focus:ring-0 text-sm shadow-sm" />
+
+                            {newMessage.trim() || isUploading ? (
+                                <button type="button" onClick={handleSend} disabled={!newMessage.trim() || isUploading} className={`p-3 rounded-full shadow-md transition-all active:scale-95 ${newMessage.trim() ? 'bg-[#008069] text-white' : 'bg-gray-300 text-gray-500'}`}>
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                                </button>
+                            ) : (
+                                <button type="button" onClick={startRecording} className="p-3 bg-[#008069] text-white rounded-full shadow-md transition-all active:scale-95 hover:bg-[#006a57]">
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            )}
+                        </>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-between bg-white rounded-full px-4 py-2 shadow-sm animate-in slide-in-from-right-2">
+                            <div className="flex items-center gap-3">
+                                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>
+                                <span className="text-sm font-medium text-gray-700">{formatTime(recordingTime)}</span>
+                                <span className="text-xs text-gray-400 font-bold uppercase tracking-widest ml-2">Recording...</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button type="button" onClick={cancelRecording} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors font-bold text-xs uppercase">Cancel</button>
+                                <button type="button" onClick={stopRecording} className="p-2.5 bg-[#008069] text-white rounded-full shadow-md active:scale-95 transition-all">
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                                </button>
+                            </div>
                         </div>
                     )}
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        className="hidden"
-                        onChange={handleFileUpload}
-                        multiple
-                        accept="image/*,.pdf,.doc,.docx"
-                    />
-                    <input id="tour-chat-input" type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 py-3 px-4 rounded-full border-none focus:ring-0 text-sm shadow-sm" />
-                    <button type="submit" disabled={!newMessage.trim()} className={`p-3 rounded-full shadow-md ${newMessage.trim() ? 'bg-[#008069] text-white' : 'bg-gray-300 text-gray-500'}`}><svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>
-                </form>
+                </div>
             </div>
 
             {/* Group Info */}
@@ -523,19 +640,32 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             </Modal>
 
             {/* Image Preview Modal */}
-            <Modal
-                isOpen={selectedImageUrl !== null}
-                onClose={() => setSelectedImageUrl(null)}
-                title="Image Preview"
-            >
-                <div className="flex justify-center items-center bg-gray-50 rounded-lg p-1 min-h-[200px]">
-                    <img
-                        src={selectedImageUrl || ''}
-                        alt="Preview"
-                        className="max-w-full h-auto rounded shadow-sm"
-                    />
+            {/* Premium Full-Screen Image Preview */}
+            {selectedImageUrl && (
+                <div
+                    className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300"
+                    onClick={() => setSelectedImageUrl(null)}
+                >
+                    {/* Close Button */}
+                    <button
+                        onClick={() => setSelectedImageUrl(null)}
+                        className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-[110] border border-white/20"
+                    >
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+
+                    {/* Image Container */}
+                    <div className="relative w-full h-full p-4 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                        <img
+                            src={selectedImageUrl}
+                            alt="Full Screen Preview"
+                            className="max-w-full max-h-full object-contain shadow-2xl rounded-sm animate-in zoom-in-95 duration-300"
+                        />
+                    </div>
                 </div>
-            </Modal>
+            )}
         </div>
     );
 };

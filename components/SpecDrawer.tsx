@@ -17,6 +17,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
     const [files, setFiles] = useState<AttachedFile[]>([...(channel.files || [])]);
     const [specs, setSpecs] = useState(channel.specs || []);
     const [newSpecContent, setNewSpecContent] = useState('');
+    const [previewFile, setPreviewFile] = useState<AttachedFile | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,10 +108,8 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
 
     const handleViewFile = (file: AttachedFile) => {
         if (file.url && file.url !== '#') {
-            // Open the Blob URL or external URL
-            window.open(file.url, '_blank');
+            setPreviewFile(file);
         } else {
-            // Fallback for mock files without valid URLs
             alert(`Document View Simulation: ${file.name}\n\n(In a real app, this would open the file viewer)`);
         }
     };
@@ -144,7 +143,7 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
             </div>
 
             {isOpen && (
-                <div className="p-4 bg-white animate-fade-in-down border-t border-gray-100">
+                <div className="p-4 bg-white animate-fade-in-down border-t border-gray-100 max-h-[28vh] md:max-h-[500px] overflow-y-auto border-b-2 border-slate-100">
                     {/* Tabs */}
                     <div className="flex gap-2 mb-4 border-b border-gray-200">
                         <button
@@ -225,29 +224,54 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                     {/* Files Tab */}
                     {activeTab === 'FILES' && (
                         <>
-                            {/* File List */}
-                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                            {/* File List - Vertical list on most screens, grid only on large desktop */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 mb-4">
                                 {files.length === 0 && (
                                     <div className="col-span-full text-center text-gray-400 text-sm py-4 italic">No documents attached yet.</div>
                                 )}
                                 {files.map(file => (
-                                    <div key={file.id} className="flex items-center p-3 border border-gray-200 rounded-lg hover:border-blue-300 transition-all group relative bg-white shadow-sm">
+                                    <div key={file.id} className="flex items-center p-2 border border-gray-100 rounded-lg hover:border-blue-200 transition-all group relative bg-white shadow-sm min-w-0">
                                         {/* Clickable Area for Viewing */}
                                         <div
                                             className="flex-1 flex items-center cursor-pointer min-w-0"
                                             onClick={() => handleViewFile(file)}
                                         >
-                                            <div className="h-10 w-10 bg-gray-100 rounded flex items-center justify-center mr-3 group-hover:bg-blue-50 flex-shrink-0">
-                                                {file.name.toLowerCase().endsWith('.pdf') ? (
-                                                    <span className="text-red-500 text-xs font-bold">PDF</span>
+                                            <div className="h-10 w-10 bg-slate-50 rounded-md flex items-center justify-center mr-3 group-hover:bg-blue-50 flex-shrink-0 overflow-hidden border border-gray-100">
+                                                {file.type === 'PDF' ? (
+                                                    <div className="flex flex-col items-center">
+                                                        <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z" />
+                                                            <path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                                                        </svg>
+                                                        <span className="text-[8px] font-bold text-red-600 -mt-1">PDF</span>
+                                                    </div>
+                                                ) : file.type === 'IMAGE' ? (
+                                                    <img
+                                                        src={file.url}
+                                                        alt="preview"
+                                                        className="h-full w-full object-cover"
+                                                        onError={(e) => {
+                                                            // If real image fails, hide image and show placeholder
+                                                            (e.target as HTMLImageElement).style.display = 'none';
+                                                            const parent = (e.target as HTMLImageElement).parentElement;
+                                                            if (parent) {
+                                                                const span = document.createElement('span');
+                                                                span.className = 'text-blue-500 text-[10px] font-bold';
+                                                                span.innerText = 'IMG';
+                                                                parent.appendChild(span);
+                                                            }
+                                                        }}
+                                                    />
                                                 ) : (
-                                                    <span className="text-blue-500 text-xs font-bold">IMG</span>
+                                                    <span className="text-blue-500 text-[10px] font-bold uppercase px-0.5">
+                                                        {file.name.includes('.') ? file.name.split('.').pop() : 'FILE'}
+                                                    </span>
                                                 )}
                                             </div>
-                                            <div className="min-w-0 overflow-hidden">
-                                                <div className="text-[12px] font-medium text-gray-800 truncate" title={file.name}>{file.name}</div>
-                                                <div className="text-[10px] text-gray-400 truncate">
-                                                    By {file.uploadedBy} • {new Date(file.uploadedAt).toLocaleDateString()}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-[12px] font-bold text-gray-800 leading-snug line-clamp-2 break-words" title={file.name}>{file.name}</div>
+                                                <div className="text-[9px] text-gray-400 mt-0.5">
+                                                    {file.uploadedBy} • {new Date(file.uploadedAt).toLocaleDateString()}
                                                 </div>
                                             </div>
                                         </div>
@@ -327,6 +351,54 @@ export const SpecDrawer: React.FC<SpecDrawerProps> = ({ channel, currentUser }) 
                             )}
                         </>
                     )}
+                </div>
+            )}
+            {/* Premium Full-Screen File Preview */}
+            {previewFile && (
+                <div
+                    className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300"
+                    onClick={() => setPreviewFile(null)}
+                >
+                    {/* Close Button */}
+                    <button
+                        onClick={() => setPreviewFile(null)}
+                        className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-[110] border border-white/20"
+                    >
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+
+                    {/* Content Container */}
+                    <div className="relative w-full h-full p-4 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                        {previewFile.type === 'IMAGE' ? (
+                            <img
+                                src={previewFile.url}
+                                alt="Full Screen Preview"
+                                className="max-w-full max-h-full object-contain shadow-2xl rounded-sm animate-in zoom-in-95 duration-300"
+                            />
+                        ) : previewFile.type === 'PDF' ? (
+                            <iframe
+                                src={previewFile.url}
+                                className="w-full h-full max-w-5xl bg-white rounded-lg shadow-2xl"
+                                title="PDF Preview"
+                            />
+                        ) : (
+                            <div className="bg-white p-8 rounded-xl text-center max-w-md">
+                                <div className="text-4xl mb-4">📄</div>
+                                <h3 className="text-xl font-bold mb-2">{previewFile.name}</h3>
+                                <p className="text-gray-500 mb-6">Preview not available for this file type.</p>
+                                <a
+                                    href={previewFile.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-block bg-[#008069] text-white px-6 py-2 rounded-lg font-medium"
+                                >
+                                    Open in New Tab
+                                </a>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

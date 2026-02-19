@@ -25,7 +25,6 @@ const App: React.FC = () => {
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [showInstallPopup, setShowInstallPopup] = useState(false);
     const [runTour, setRunTour] = useState(false);
-    const [isLoadingFromBackground, setIsLoadingFromBackground] = useState(false);
 
     // Unified function to handle onboarding prompts (Notifications -> Install)
     const showOnboardingPrompts = () => {
@@ -91,15 +90,11 @@ const App: React.FC = () => {
                 // This prevents the global loader from unmounting the app and killing the upload.
                 if ((window as any).isKramizUploading) {
                     console.log('Skipping background refresh: Upload or File Picker active');
-                    // Reset the 'just opened picker' state after a small delay to allow resume
                     return;
                 }
 
-                setIsLoadingFromBackground(true);
+                // Silently invalidate queries in the background without showing the full-screen loader
                 queryClient.invalidateQueries();
-                setTimeout(() => {
-                    setIsLoadingFromBackground(false);
-                }, 600);
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -206,7 +201,7 @@ const App: React.FC = () => {
     };
 
     // Show loading screen while restoring session or resuming
-    if (isRestoringSession || isLoadingFromBackground) {
+    if (isRestoringSession) {
         return (
             <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center">
                 <div className="text-center">

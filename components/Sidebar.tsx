@@ -45,15 +45,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectChannel, 
             if (!map[ch.po_id]) map[ch.po_id] = [];
             map[ch.po_id].push(ch);
         });
+
+        // Sort groups by created_at for each PO
+        Object.keys(map).forEach(poId => {
+            map[poId].sort((a, b) => {
+                const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                return dateA - dateB;
+            });
+        });
+
         return map;
     }, [allChannels]);
 
     // Mutations
     const handleRefresh = () => {
-        const mask = document.getElementById('global-loader');
-        if (mask) mask.style.display = 'flex';
         queryClient.invalidateQueries();
-        setTimeout(() => window.location.reload(), 500);
     };
 
     const createPOMutation = useMutation({
