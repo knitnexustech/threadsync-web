@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { initializeNativePlugins, isNative } from './capacitorUtils';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,8 +25,11 @@ root.render(
   </React.StrictMode>
 );
 
-// Register Service Worker for PWA
-if ('serviceWorker' in navigator) {
+// Initialize Capacitor native plugins (no-op on web)
+initializeNativePlugins();
+
+// Register Service Worker for PWA (skip on native — Capacitor handles this natively)
+if (!isNative && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => console.log('SW Registered!', reg))

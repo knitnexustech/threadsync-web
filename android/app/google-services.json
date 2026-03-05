@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "637419469232",
+    "project_id": "kramiz-production",
+    "storage_bucket": "kramiz-production.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:637419469232:android:1751c17a47af796ede3e75",
+        "android_client_info": {
+          "package_name": "com.kramiz.productiontracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBV82FLP0lB3pbe00VYMWyoQvdYrQ_zWJ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
