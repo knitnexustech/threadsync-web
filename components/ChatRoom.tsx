@@ -8,6 +8,7 @@ import { compressImage } from '../imageUtils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { playNotificationSound, triggerVibration } from '../notificationUtils';
 import { supabase } from '../supabaseClient';
+import { generateSlug } from '../routeUtils';
 
 interface ChatRoomProps {
     currentUser: User;
@@ -434,6 +435,25 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const handleDownloadImage = async (url: string) => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `kramiz_image_${Date.now()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            console.error("Download failed:", err);
+            // Fallback: open in new tab
+            window.open(url, '_blank');
+        }
+    };
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const selectedFiles = Array.from(e.target.files);
@@ -540,7 +560,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         <div className="flex h-full w-full relative">
             <div className="flex flex-col h-full bg-[#efeae2] relative flex-1">
                 {/* Header */}
-                <div className="bg-[#008069] text-white px-4 py-3 flex items-center shadow-md z-30 justify-between">
+                <div className="bg-[#008069] text-white px-4 py-3 flex items-center shadow-md z-30 justify-between safe-pt">
                     <div className="flex items-center flex-1 min-w-0">
                         <button onClick={onBack} className="mr-3 md:hidden"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
                         <div className="flex-1 min-w-0">
@@ -604,7 +624,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                     <div ref={messagesEndRef} />
                 </div>
 
-                <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative">
+                <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative safe-pb">
                     <input
                         type="file"
                         ref={fileInputRef}
@@ -707,15 +727,27 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                     className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300"
                     onClick={() => setSelectedImageUrl(null)}
                 >
-                    {/* Close Button */}
-                    <button
-                        onClick={() => setSelectedImageUrl(null)}
-                        className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-[110] border border-white/20"
-                    >
-                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+                    {/* Top Controls */}
+                    <div className="absolute top-6 right-6 flex items-center gap-3 z-[110]">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleDownloadImage(selectedImageUrl); }}
+                            className="p-2.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all border border-white/20 flex items-center justify-center"
+                            title="Download Image"
+                        >
+                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                        </button>
+                        <button
+                            onClick={() => setSelectedImageUrl(null)}
+                            className="p-2.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all border border-white/20 flex items-center justify-center"
+                            title="Close"
+                        >
+                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
 
                     {/* Image Container */}
                     <div className="relative w-full h-full p-4 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>

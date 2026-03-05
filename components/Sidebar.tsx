@@ -369,7 +369,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
     return (
         <div className="flex flex-col h-full bg-white border-r border-gray-200 w-full md:w-[400px]">
             {/* Header & Tabs */}
-            <div className="bg-[#f0f2f5] border-b sticky top-0 z-10 flex flex-col">
+            <div className="bg-[#f0f2f5] border-b sticky top-0 z-10 flex flex-col safe-pt">
                 <div className="px-1 py-1 flex justify-between items-center">
                     {/* Left: Brand Identity */}
                     <div className="flex items-center gap-2">
@@ -587,7 +587,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                 )}
             </div>
 
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center relative">
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center relative safe-pb">
                 <div className="relative">
                     <button id="tour-settings-btn" onClick={() => setShowSettings(!showSettings)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-lg border border-gray-300 bg-white shadow-sm" title="Settings">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

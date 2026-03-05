@@ -82,7 +82,7 @@ export const Signup: React.FC<SignupProps> = ({ onBack, onSignupSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center p-4 safe-pt safe-pb">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md relative">
         <button onClick={onBack} className="absolute top-4 left-4 text-gray-400 hover:text-gray-600">
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

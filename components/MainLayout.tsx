@@ -5,6 +5,7 @@ import { User, Channel, PurchaseOrder, Company } from '../types';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../supabaseAPI';
+import { findGroupByIdOrSlug, generateSlug } from '../routeUtils';
 
 interface MainLayoutProps {
     user: User;
@@ -47,11 +48,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         queryFn: () => api.getPOs(user),
     });
 
-    const selectedChannel = allChannels.find(c => c.id === groupId);
-    const selectedPO = selectedChannel ? pos.find(p => p.id === selectedChannel.po_id) : null;
+    const selectedChannel = findGroupByIdOrSlug(groupId, allChannels, pos, userCompany || undefined);
+    const selectedPO = selectedChannel ? pos.find(p => p.id === selectedChannel.po_id) || null : null;
 
     const onSelectChannel = (c: Channel, p: PurchaseOrder) => {
-        navigate(`/group/${c.id}`);
+        const slug = generateSlug(c, p, userCompany || undefined);
+        navigate(`/group/${slug}`);
     };
 
     return (

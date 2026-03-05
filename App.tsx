@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Login } from './components/Login';
 import { api } from './supabaseAPI';
 import { LandingPage } from './components/LandingPage';
@@ -14,6 +14,8 @@ import { playNotificationSound, triggerVibration } from './notificationUtils';
 import { MainLayout } from './components/MainLayout';
 import { ChatRoom } from './components/ChatRoom';
 import WelcomeView from './components/WelcomeView';
+import { findGroupByIdOrSlug } from './routeUtils';
+import { initializeNativePlugins, isNative, scheduleLocalNotification } from './capacitorUtils';
 
 const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user, onLogout }) => {
     const queryClient = useQueryClient();
@@ -41,8 +43,8 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
         enabled: !!user.company_id
     });
 
-    const selectedChannel = allChannels.find(c => c.id === groupId);
-    const selectedPO = selectedChannel ? pos.find(p => p.id === selectedChannel.po_id) : null;
+    const selectedChannel = findGroupByIdOrSlug(groupId, allChannels, pos, userCompany || undefined);
+    const selectedPO = selectedChannel ? pos.find(p => p.id === selectedChannel.po_id) || null : null;
 
     // Unified function to handle onboarding prompts
     const showOnboardingPrompts = () => {
@@ -99,7 +101,11 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
                 playNotificationSound();
                 triggerVibration();
 
-                if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
+                if (isNative) {
+                    const { data: ch } = await supabase.from('channels').select('name').eq('id', newMsg.channel_id).single();
+                    const title = ch ? `New Message in ${ch.name}` : 'New Message';
+                    await scheduleLocalNotification(title, newMsg.content, undefined, { channel_id: newMsg.channel_id });
+                } else if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
                     const { data: ch } = await supabase.from('channels').select('name').eq('id', newMsg.channel_id).single();
                     const title = ch ? `New Message in ${ch.name}` : 'New Message';
 
@@ -205,7 +211,7 @@ const AppRoutes: React.FC<{
     return (
         <Routes>
             {/* Public Routes */}
-            <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage onDemoLogin={handleDemoLogin} />} />
+            <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : (isNative ? <Navigate to="/login" replace /> : <LandingPage onDemoLogin={handleDemoLogin} />)} />
             <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login onLogin={handleLogin} onBack={() => navigate('/')} />} />
             <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <Signup onBack={() => navigate('/')} onSignupSuccess={() => navigate('/login')} />} />
 
@@ -226,6 +232,9 @@ const App: React.FC = () => {
     useEffect(() => {
         const initApp = async () => {
             try {
+                // Initialize native plugins (Permissions, Status Bar, etc.)
+                await initializeNativePlugins();
+
                 const savedUser = loadSession();
                 if (savedUser) setUser(savedUser);
             } catch (err) {
@@ -279,14 +288,14 @@ const App: React.FC = () => {
     }
 
     return (
-        <BrowserRouter>
+        <HashRouter>
             <AppRoutes
                 user={user}
                 handleDemoLogin={handleDemoLogin}
                 handleLogin={handleLogin}
                 handleLogout={handleLogout}
             />
-        </BrowserRouter>
+        </HashRouter>
     );
 };
 
