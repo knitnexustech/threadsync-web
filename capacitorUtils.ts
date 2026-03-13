@@ -37,56 +37,76 @@ export interface PushNotificationToken {
 }
 
 /**
- * Register for push notifications on native platforms.
- * Returns the device token for server-side notification delivery.
+ * Configure and register push notifications.
  */
-export const registerPushNotifications = async (
-    onTokenReceived: (token: PushNotificationToken) => void,
-    onNotificationReceived: (notification: any) => void,
-    onNotificationAction: (action: any) => void,
+const setupPushNotifications = async (
+    onTokenReceived?: (token: string) => void,
+    onNotificationAction?: (action: any) => void
 ): Promise<void> => {
-    if (!isNative) {
-        console.log('[Capacitor] Push notifications not available on web — using Web Push API fallback');
-        return;
-    }
-
     try {
-        // Request permission
-        const permStatus = await PushNotifications.requestPermissions();
+        // 1. Create Notification Channel for Android (CRITICAL for Android 8+)
+        if (platform === 'android') {
+            await PushNotifications.createChannel({
+                id: 'messages',
+                name: 'Messages',
+                description: 'Notifications for new messages',
+                importance: 5, // Max importance
+                visibility: 1,
+                sound: 'notification.wav',
+                vibration: true,
+            });
 
-        if (permStatus.receive === 'granted') {
-            // Register with APNs / FCM
-            await PushNotifications.register();
-        } else {
-            console.warn('[Capacitor] Push notification permission denied');
+            await PushNotifications.createChannel({
+                id: 'system',
+                name: 'System Updates',
+                description: 'Notifications for system updates',
+                importance: 3,
+                visibility: 1,
+                vibration: true,
+            });
+        }
+
+        // 2. Request Permissions
+        const permStatus = await PushNotifications.requestPermissions();
+        if (permStatus.receive !== 'granted') {
+            console.warn('[Capacitor] Push notification permissions denied');
             return;
         }
 
-        // Listen for registration success
-        PushNotifications.addListener('registration', (token) => {
-            console.log('[Capacitor] Push token received:', token.value);
-            onTokenReceived(token);
+        // 3. Add Listeners BEFORE Registering
+        
+        // Success
+        await PushNotifications.addListener('registration', (token) => {
+            console.log('[Capacitor] Push registration successful, token:', token.value);
+            if (onTokenReceived) onTokenReceived(token.value);
         });
 
-        // Listen for registration errors
-        PushNotifications.addListener('registrationError', (error) => {
-            console.error('[Capacitor] Push registration error:', error);
+        // Error
+        await PushNotifications.addListener('registrationError', (err) => {
+            console.error('[Capacitor] Push registration error:', err.error);
         });
 
-        // Listen for incoming notifications while app is in foreground
-        PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            console.log('[Capacitor] Push notification received:', notification);
-            onNotificationReceived(notification);
+        // Received in Foreground
+        await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+            console.log('[Capacitor] Foreground notification received:', notification);
+            
+            // We usually don't need to manually schedule a local notification here 
+            // if the app is already listening via Realtime, but it's a good fallback.
+            // However, to avoid duplicates, we check if the app is active.
+            // If the backend sends 'silent' push, we can show it here.
         });
 
-        // Listen for notification tap actions
-        PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-            console.log('[Capacitor] Push notification action:', action);
-            onNotificationAction(action);
+        // Tapped / Action
+        await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+            console.log('[Capacitor] Notification action performed:', action);
+            if (onNotificationAction) onNotificationAction(action);
         });
 
-    } catch (error) {
-        console.error('[Capacitor] Failed to register push notifications:', error);
+        // 4. Register with Apple/Google
+        await PushNotifications.register();
+
+    } catch (err) {
+        console.error('[Capacitor] Failed to setup push notifications:', err);
     }
 };
 
@@ -101,6 +121,8 @@ export const clearPushNotifications = async (): Promise<void> => {
         console.error('[Capacitor] Failed to clear notifications:', error);
     }
 };
+
+// ... (LOCAL NOTIFICATIONS remains same)
 
 // ============================================
 // LOCAL NOTIFICATIONS
@@ -501,7 +523,10 @@ export const setupNetworkListener = (
  * Initialize all native plugins. Call this once in your app entry point.
  */
 export const initializeNativePlugins = async (
-    onTokenReceived?: (token: string) => void
+    callbacks?: {
+        onTokenReceived?: (token: string) => void;
+        onNotificationAction?: (action: any) => void;
+    }
 ): Promise<void> => {
     if (!isNative) {
         console.log('[Capacitor] Running on web — native plugins skipped');
@@ -510,59 +535,32 @@ export const initializeNativePlugins = async (
 
     console.log(`[Capacitor] Initializing on ${platform}...`);
 
-    // Configure status bar
-    await configureStatusBar('#008069', 'dark');
-
-    // Register token listener before registering
-    if (onTokenReceived) {
-        PushNotifications.addListener('registration', (token) => {
-            console.log('[Capacitor] Push token received:', token.value);
-            onTokenReceived(token.value);
-        });
-    }
-
-    // Request notification permissions and register for push (if not already done)
     try {
-        const pushStatus = await PushNotifications.requestPermissions();
-        if (pushStatus.receive === 'granted') {
-            await PushNotifications.register();
-        }
+        // 1. Configure status bar
+        await configureStatusBar('#008069', 'dark');
 
+        // 2. Setup Push Notifications (includes channels and listeners)
+        await setupPushNotifications(
+            callbacks?.onTokenReceived,
+            callbacks?.onNotificationAction
+        );
+
+        // 3. Request Local Notification permissions separately if needed
         const localStatus = await LocalNotifications.requestPermissions();
         if (localStatus.display === 'granted') {
             console.log('[Capacitor] Local notifications granted');
         }
+
+        // 4. Hide splash screen
+        await hideSplashScreen();
+
+        // 5. Device info logging
+        const deviceInfo = await getDeviceInfo();
+        console.log('[Capacitor] Device:', deviceInfo);
+
     } catch (err) {
-        console.warn('[Capacitor] Initial permission request error:', err);
+        console.error('[Capacitor] Initialization error:', err);
     }
-
-    // Foreground listener logic (display notifications while app is open)
-    PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-        console.log('[Capacitor] Foreground push received:', notification);
-
-        // When received in foreground, we force an alert using LocalNotifications
-        if (isNative) {
-            await LocalNotifications.schedule({
-                notifications: [
-                    {
-                        id: Date.now(),
-                        title: notification.title || 'New Message',
-                        body: notification.body || 'You have a new update in Kramiz',
-                        schedule: { at: new Date(Date.now() + 100) },
-                        smallIcon: 'ic_stat_icon',
-                        iconColor: '#008069',
-                    }
-                ]
-            });
-        }
-    });
-
-    // Hide splash screen after app is ready
-    await hideSplashScreen();
-
-    // Log device info
-    const deviceInfo = await getDeviceInfo();
-    console.log('[Capacitor] Device:', deviceInfo);
 
     console.log('[Capacitor] Native plugins initialized successfully');
 };

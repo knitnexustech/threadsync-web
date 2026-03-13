@@ -25,8 +25,8 @@ root.render(
   </React.StrictMode>
 );
 
-// Initialize Capacitor native plugins (no-op on web)
-initializeNativePlugins();
+// Initialize Capacitor native plugins (handled in App.tsx for better callback management)
+// initializeNativePlugins();
 
 // Register Service Worker for PWA (skip on native — Capacitor handles this natively)
 if (!isNative && 'serviceWorker' in navigator) {

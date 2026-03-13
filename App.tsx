@@ -232,13 +232,24 @@ const App: React.FC = () => {
     useEffect(() => {
         const initApp = async () => {
             try {
-                // Initialize native plugins (Permissions, Status Bar, etc.)
-                await initializeNativePlugins((token) => {
-                    localStorage.setItem('native_push_token', token);
-                    // If user is already loaded, save it now
-                    const savedUser = loadSession();
-                    if (savedUser) {
-                        api.saveNativePushToken(savedUser.id, token);
+                // Initialize native plugins (Permissions, Status Bar, Channels, etc.)
+                await initializeNativePlugins({
+                    onTokenReceived: (token) => {
+                        console.log('[Native] Token received:', token);
+                        localStorage.setItem('native_push_token', token);
+                        // If user is already loaded, save it now
+                        const savedUser = loadSession();
+                        if (savedUser) {
+                            api.saveNativePushToken(savedUser.id, token);
+                        }
+                    },
+                    onNotificationAction: (action) => {
+                        console.log('[Native] Notification action:', action);
+                        const data = action.notification?.data;
+                        if (data && data.channel_id) {
+                            // Navigate to the channel
+                            window.location.hash = `#/group/${data.channel_id}`;
+                        }
                     }
                 });
 
