@@ -841,17 +841,17 @@ export const api = {
 
     saveNativePushToken: async (userId: string, token: string) => {
         const { error } = await supabase
-            .from('device_tokens')
+            .from('native_push_tokens')
             .upsert({
                 user_id: userId,
                 token: token,
-                platform: 'android', // Defaulting to android for now
+                updated_at: new Date().toISOString()
             }, { onConflict: 'user_id, token' });
 
         if (error) {
-            console.error('[Supabase] Failed to save device token:', error.message);
+            console.error('[Supabase] Failed to save push token:', error.message);
         } else {
-            console.log('[Supabase] Device token saved successfully');
+            console.log('[Supabase] Push token saved successfully');
         }
     }
 };
