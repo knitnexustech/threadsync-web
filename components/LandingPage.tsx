@@ -131,7 +131,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onDemoLogin }) => {
                             Production Tracking Simplified
                         </div>
 
-                        <h1 className="text-4xl md:text-6xl font-black leading-[1.1] tracking-tight text-gray-900 drop-shadow-sm mb-6">
+                        <h1 className="text-4xl md:text-6xl font-extrabold leading-[1.1] tracking-tight text-gray-900 drop-shadow-sm mb-6">
                             Track Every Order. <br />
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#008069] to-[#00b894]">Greige to Garment.</span>
                         </h1>

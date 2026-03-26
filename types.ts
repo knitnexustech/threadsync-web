@@ -1,26 +1,74 @@
 
-export type CompanyType = 'MANUFACTURER' | 'VENDOR';
-
+// Every company is a neutral peer — no more MANUFACTURER/VENDOR split.
 export interface Company {
   id: string;
   name: string;
-  type: CompanyType;
+  gst_number?: string;
+  kramiz_id?: string;
+  address?: string;
+  state?: string;
+  pincode?: string;
   created_at?: string;
 }
 
+// A partnership is a verified, bidirectional link between two companies.
+export interface Partnership {
+  id: string;
+  requester_id: string;
+  receiver_id: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  created_at?: string;
+  requester?: Company;
+  receiver?: Company;
+}
+
+// A contact is a manually added company that may or may not be on Kramiz.
+export interface Contact {
+  id: string;
+  owner_company_id: string;
+  name: string;
+  gst_number?: string;
+  address?: string;
+  state?: string;
+  pincode?: string;
+  phone?: string;
+  notes?: string;
+  invite_sent_at?: string;
+  linked_company_id?: string;
+  created_at?: string;
+  linked_company?: Company;
+}
+
+// ── Roles ─────────────────────────────────────────────────────────────────────
+//
+//  ADMIN         Owner / Partner — full access, sees ALL orders & channels
+//  MERCHANDISER  Manages orders end-to-end, creates channels, DCs, invoices
+//  MANAGER       Production / Floor manager — operational, cannot create orders
+//  SENIOR_STAFF  Dispatch / logistics — creates DCs and ICs, manages drivers
+//  JUNIOR_STAFF  Trainee / support — read + message only, cannot create docs
+//
+//  Visibility rule:
+//    ADMIN → sees all orders & channels across the company
+//    Everyone else → sees ONLY channels they have been explicitly added to
+//
+//  Auto-membership rule:
+//    When a Merchandiser creates an order, ALL ADMINs of the company +
+//    the creating Merchandiser are automatically added to every channel
+//    created under that order.
+
 export type UserRole =
   | 'ADMIN'
-  | 'SENIOR_MERCHANDISER'
-  | 'JUNIOR_MERCHANDISER'
-  | 'SENIOR_MANAGER'
-  | 'JUNIOR_MANAGER';
+  | 'MERCHANDISER'
+  | 'MANAGER'
+  | 'SENIOR_STAFF'
+  | 'JUNIOR_STAFF';
 
 export interface User {
   id: string;
   company_id: string;
   name: string;
-  phone: string; // Must be exactly 10 digits
-  passcode: string; // 4-digit passcode for authentication
+  phone: string;
+  passcode: string;
   role: UserRole;
   created_at?: string;
   company?: Company;
@@ -28,7 +76,7 @@ export interface User {
 
 export interface Spec {
   id: string;
-  content: string; // Free-form text note/spec
+  content: string;
   created_at?: string;
   created_by?: string;
 }
@@ -42,21 +90,20 @@ export interface AttachedFile {
   uploadedAt: string;
 }
 
-export interface PurchaseOrder {
+export interface Order {
   id: string;
   order_number: string;
   manufacturer_id: string;
   style_number: string;
   image_url: string;
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
-  created_by: string; // User ID who created the PO
+  created_by: string;
   created_at?: string;
 }
 
-// NEW: PO Members (Overview Group)
-export interface POMember {
+export interface OrderMember {
   id: string;
-  po_id: string;
+  order_id: string;
   user_id: string;
   added_at?: string;
 }
@@ -65,25 +112,24 @@ export type ChannelType = 'OVERVIEW' | 'VENDOR';
 
 export interface Channel {
   id: string;
-  po_id: string;
+  order_id: string;
   name: string;
   type: ChannelType;
-  vendor_id?: string; // Nullable if managed internally or unassigned (for OVERVIEW type)
-  status: string; // PENDING, IN_PROGRESS, COMPLETED
-  specs: Spec[]; // Channel-specific specs (GSM, Dia, Color, etc.)
-  files: AttachedFile[]; // Channel-specific files (spec sheets, samples, etc.)
+  vendor_id?: string;
+  status: string;
+  specs: Spec[];
+  files: AttachedFile[];
   last_activity_at?: string;
-  last_read_at?: string; // Add this field for UI convenience
+  last_read_at?: string;
   due_date?: string;
   created_at?: string;
 }
 
-// NEW: Channel Members
 export interface ChannelMember {
   id: string;
   channel_id: string;
   user_id: string;
-  added_by: string; // User ID who added this member
+  added_by: string;
   last_read_at?: string;
   added_at?: string;
 }
@@ -98,42 +144,258 @@ export interface Message {
   user?: User;
 }
 
-// Permission helper types
+// ── DC / Challan types ────────────────────────────────────────────────────────
+
+/** A single line item on a Delivery Challan or Inward Challan. */
+export interface DCItem {
+  description: string;
+  quantity:    number;
+  unit:        string; // KG, MTR, PCS, SET, BAG, ...
+}
+
+/** Outward Delivery Challan — created by the sender at point of dispatch. */
+export interface DeliveryChallan {
+  id:                   string;
+  dc_number:            string;
+  channel_id?:          string;
+  sender_company_id:    string;
+  receiver_company_id?: string;
+  receiver_contact_id?: string;
+  order_number?:        string;
+  ref_order_number?:    string;
+  items:                DCItem[];
+  driver_name?:         string;
+  driver_phone?:        string;
+  driver_photo_url?:    string;
+  notes?:               string;
+  status:               'PENDING' | 'RECEIVED' | 'DISPUTED';
+  created_at?:          string;
+  sender_company?:      Company;
+  receiver_company?:    Company;
+}
+
+/** Inward Challan — created by the receiver when goods arrive. */
+export interface InwardChallan {
+  id:                   string;
+  ic_number:            string;
+  channel_id?:          string;
+  linked_dc_id?:        string;
+  sender_company_id?:  string;
+  sender_contact_id?:  string;
+  receiver_company_id: string;
+  order_number?:        string;
+  ref_order_number?:    string;
+  items_received:       DCItem[];
+  discrepancies?:       string;
+  notes?:               string;
+  created_at?:          string;
+  sender_company?:      Company;
+  receiver_company?:    Company;
+}
+
+/** Reusable driver / courier profile saved per company. */
+export interface Driver {
+  id:          string;
+  company_id:  string;
+  name:        string;
+  phone?:      string;
+  photo_url?:  string;
+  created_at?: string;
+}
+
+// ── Invoice / Quotation types ─────────────────────────────────────────────────
+
+/**
+ * GST type — determines how the rate is split on the document.
+ *   CGST_SGST → intra-state: CGST (rate/2) + SGST (rate/2) shown separately
+ *   IGST      → inter-state: IGST (full rate) shown as one line
+ */
+export type GSTType = 'CGST_SGST' | 'IGST';
+
+/** Valid Indian GST rate slabs. */
+export type GSTRate = 3 | 5 | 12 | 18;
+
+/**
+ * A single line item on an Invoice or Quotation.
+ * amount = quantity × rate (stored pre-calculated to avoid floating-point drift).
+ */
+export interface InvoiceItem {
+  description: string;
+  hsn_code?:   string;   // HSN/SAC code for tax
+  quantity:    number;
+  unit:        string;   // KG, MTR, PCS, SET, ...
+  rate:        number;   // price per unit (₹)
+  amount:      number;   // quantity × rate
+}
+
+/**
+ * Invoice — billing document raised by the seller.
+ *
+ * GST split logic (UI responsibility):
+ *   CGST_SGST → display CGST = gst_rate/2, SGST = gst_rate/2
+ *   IGST      → display IGST = gst_rate (full)
+ *   null      → no GST line
+ *
+ * Status:
+ *   DRAFT → saved, not yet shared with buyer
+ *   SENT  → shared with buyer (can still be edited as DRAFT if recalled)
+ */
+export interface Invoice {
+  id:                string;
+  invoice_number:    string;          // e.g. INV-260322-001
+  seller_company_id: string;          // always the creator's company
+  buyer_company_id?: string;          // Kramiz partner
+  buyer_contact_id?: string;          // manual contact (offline buyer)
+  order_id?:         string;          // linked Purchase Order (optional)
+  channel_id?:       string;          // linked chat channel (optional)
+  linked_dc_ids:     string[];        // array of DC IDs this invoice covers
+  items:             InvoiceItem[];
+  subtotal:          number;          // sum of all item amounts
+  gst_type?:         GSTType;        // null = no GST
+  gst_rate?:         GSTRate;        // 3 | 5 | 12 | 18
+  gst_amount?:       number;         // calculated: subtotal × (gst_rate/100)
+  total_amount:      number;         // subtotal + gst_amount (or just subtotal)
+  due_date?:         string;         // ISO date
+  notes?:            string;
+  status:            'DRAFT' | 'SENT';
+  created_by:        string;         // user ID
+  created_at?:       string;
+  updated_at?:       string;
+  // Joined for display
+  seller_company?:   Company;
+  buyer_company?:    Company;
+  buyer_contact?:    Contact;
+}
+
+/**
+ * Quotation — a rate quote sent before a formal invoice.
+ * Same line-item structure as Invoice.
+ * Has extra statuses: ACCEPTED and REJECTED (buyer can respond).
+ * Has valid_until — the quote expires on that date.
+ */
+export interface Quotation {
+  id:                   string;
+  quotation_number:     string;       // e.g. QT-260322-001
+  sender_company_id:    string;
+  receiver_company_id?: string;
+  receiver_contact_id?: string;
+  order_id?:            string;
+  channel_id?:          string;
+  items:                InvoiceItem[];
+  subtotal:             number;
+  gst_type?:            GSTType;
+  gst_rate?:            GSTRate;
+  gst_amount?:          number;
+  total_amount:         number;
+  valid_until?:         string;       // expiry ISO date
+  notes?:               string;
+  status:               'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED';
+  created_by:           string;
+  created_at?:          string;
+  updated_at?:          string;
+  // Joined for display
+  sender_company?:      Company;
+  receiver_company?:    Company;
+}
+
+// ── Permission system ─────────────────────────────────────────────────────────
+
 export type Permission =
-  | 'CREATE_PO'
-  | 'EDIT_PO'
-  | 'DELETE_PO'
+  // Purchase Orders
+  | 'CREATE_ORDER' | 'EDIT_ORDER' | 'DELETE_ORDER'
+  // Channels
   | 'CREATE_CHANNEL'
   | 'EDIT_CHANNEL'
   | 'DELETE_CHANNEL'
   | 'ADD_CHANNEL_MEMBER'
   | 'REMOVE_CHANNEL_MEMBER'
-  | 'CHANGE_USER_ROLE'
+  // Team
   | 'ADD_TEAM_MEMBER'
-  | 'EDIT_MESSAGE'
-  | 'DELETE_MESSAGE';
+  | 'CHANGE_USER_ROLE'
+  // Delivery documents
+  | 'CREATE_DC'
+  | 'CREATE_IC'
+  | 'VIEW_DC'
+  // Financial documents
+  | 'CREATE_INVOICE'
+  | 'EDIT_INVOICE'
+  | 'DELETE_INVOICE'
+  | 'CREATE_QUOTATION'
+  | 'EDIT_QUOTATION'
+  | 'DELETE_QUOTATION'
+  | 'VIEW_FINANCIALS'
+  // Drivers
+  | 'MANAGE_DRIVERS'
+  // Contacts & Partnerships
+  | 'MANAGE_CONTACTS'
+  | 'SEND_PARTNERSHIP_INVITE'
+  | 'ACCEPT_PARTNERSHIP_INVITE'
+  // Org-level
+  | 'DELETE_ORG';
 
-// Role permissions matrix
-// Note: All users can create/edit/delete their own messages (checked at runtime)
+/**
+ * Role → Permissions map.
+ * Channel/order VISIBILITY is NOT handled here — it is enforced at query level.
+ */
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  ADMIN: ['CREATE_PO', 'EDIT_PO', 'DELETE_PO', 'CREATE_CHANNEL', 'EDIT_CHANNEL', 'DELETE_CHANNEL',
-    'ADD_CHANNEL_MEMBER', 'REMOVE_CHANNEL_MEMBER', 'CHANGE_USER_ROLE', 'ADD_TEAM_MEMBER'],
-  SENIOR_MERCHANDISER: ['CREATE_PO', 'EDIT_PO', 'DELETE_PO', 'CREATE_CHANNEL', 'EDIT_CHANNEL', 'DELETE_CHANNEL', 'ADD_CHANNEL_MEMBER', 'REMOVE_CHANNEL_MEMBER'],
-  JUNIOR_MERCHANDISER: [], // No special permissions
-  SENIOR_MANAGER: ['CREATE_CHANNEL', 'EDIT_CHANNEL', 'DELETE_CHANNEL', 'ADD_CHANNEL_MEMBER', 'REMOVE_CHANNEL_MEMBER'],
-  JUNIOR_MANAGER: [], // No special permissions
+
+  ADMIN: [
+    'CREATE_ORDER', 'EDIT_ORDER', 'DELETE_ORDER',
+    'CREATE_CHANNEL', 'EDIT_CHANNEL', 'DELETE_CHANNEL',
+    'ADD_CHANNEL_MEMBER', 'REMOVE_CHANNEL_MEMBER',
+    'ADD_TEAM_MEMBER', 'CHANGE_USER_ROLE',
+    'CREATE_DC', 'CREATE_IC', 'VIEW_DC',
+    'CREATE_INVOICE', 'EDIT_INVOICE', 'DELETE_INVOICE',
+    'CREATE_QUOTATION', 'EDIT_QUOTATION', 'DELETE_QUOTATION',
+    'VIEW_FINANCIALS',
+    'MANAGE_DRIVERS',
+    'MANAGE_CONTACTS',
+    'SEND_PARTNERSHIP_INVITE', 'ACCEPT_PARTNERSHIP_INVITE',
+    'DELETE_ORG',
+  ],
+
+  MERCHANDISER: [
+    'CREATE_ORDER', 'EDIT_ORDER', 'DELETE_ORDER',
+    'CREATE_CHANNEL', 'EDIT_CHANNEL', 'DELETE_CHANNEL',
+    'ADD_CHANNEL_MEMBER', 'REMOVE_CHANNEL_MEMBER',
+    'ADD_TEAM_MEMBER',
+    'CREATE_DC', 'CREATE_IC', 'VIEW_DC',
+    'CREATE_INVOICE', 'EDIT_INVOICE', 'DELETE_INVOICE',
+    'CREATE_QUOTATION', 'EDIT_QUOTATION', 'DELETE_QUOTATION',
+    'VIEW_FINANCIALS',
+    'MANAGE_DRIVERS',
+    'MANAGE_CONTACTS',
+    'SEND_PARTNERSHIP_INVITE', 'ACCEPT_PARTNERSHIP_INVITE',
+  ],
+
+  MANAGER: [
+    'CREATE_DC', 'CREATE_IC', 'VIEW_DC',
+    'CREATE_INVOICE', 'EDIT_INVOICE', 'DELETE_INVOICE',
+    'CREATE_QUOTATION', 'EDIT_QUOTATION', 'DELETE_QUOTATION',
+    'MANAGE_DRIVERS',
+    'ADD_TEAM_MEMBER',
+    'ACCEPT_PARTNERSHIP_INVITE',
+  ],
+
+  SENIOR_STAFF: [
+    'CREATE_DC', 'CREATE_IC', 'VIEW_DC',
+    'MANAGE_DRIVERS',
+  ],
+
+  JUNIOR_STAFF: [
+    'VIEW_DC',
+  ],
+
 };
 
-// Helper function to check permissions
+/** Check if a role has a given permission. */
 export const hasPermission = (role: UserRole, permission: Permission): boolean => {
-  return ROLE_PERMISSIONS[role].includes(permission);
+  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
 };
 
-// Message ownership helpers - all users can edit/delete their own messages
-export const canEditMessage = (user: User, message: Message): boolean => {
-  return message.user_id === user.id && !message.is_system_update;
-};
+/** All users can edit/delete their own messages. */
+export const canEditMessage = (user: User, message: Message): boolean =>
+  message.user_id === user.id && !message.is_system_update;
 
-export const canDeleteMessage = (user: User, message: Message): boolean => {
-  return message.user_id === user.id && !message.is_system_update;
-};
+export const canDeleteMessage = (user: User, message: Message): boolean =>
+  message.user_id === user.id && !message.is_system_update;

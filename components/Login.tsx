@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { api } from '../supabaseAPI';
 import { User } from '../types';
+import { useAuth } from '../hooks/useAuth';
 
 interface LoginProps {
     onLogin: (user: User, rememberMe: boolean) => void;
@@ -12,36 +13,14 @@ interface LoginProps {
 export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
     const [phone, setPhone] = useState('');
     const [passcode, setPasscode] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [rememberMe, setRememberMe] = useState(true); // Default to checked
+    const [rememberMe, setRememberMe] = useState(true);
+    const { login, loading, error } = useAuth();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError('');
-
-        // Validate phone number (must be exactly 10 digits)
-        if (!/^\d{10}$/.test(phone)) {
-            setError('Phone number must be exactly 10 digits');
-            return;
-        }
-
-        // Validate passcode (must be exactly 4 digits)
-        if (!/^\d{4}$/.test(passcode)) {
-            setError('Passcode must be exactly 4 digits');
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const { user } = await api.login(phone, passcode);
-            onLogin(user, rememberMe); // Pass rememberMe flag
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+        await login(phone, passcode, rememberMe, onLogin);
     };
+
 
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value.replace(/\D/g, ''); // Only allow digits

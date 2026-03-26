@@ -1,10 +1,20 @@
 
 import { supabase, supabaseAdmin } from './supabaseClient';
 import {
-    Company, User, PurchaseOrder, Channel, Message,
-    AttachedFile, UserRole, ChannelMember, POMember,
-    hasPermission, ChannelType
+    Company, User, Order, Channel, Message,
+    AttachedFile, UserRole, ChannelMember, OrderMember,
+    hasPermission, ChannelType, Partnership
 } from './types';
+
+// Feature-specific API modules — add new features here as separate files
+import * as partnershipApi     from './api/partnerships';
+import * as companyApi         from './api/companies';
+import * as contactsApi        from './api/contacts';
+import * as deliveryChallanApi from './api/deliveryChallans';
+import * as inwardChallanApi   from './api/inwardChallans';
+import * as salesInvoiceApi    from './api/salesInvoices';
+import * as purchaseInvoiceApi from './api/purchaseInvoices';
+import * as quotationApi       from './api/quotations';
 
 // ============================================
 // AUTHENTICATION
@@ -13,17 +23,17 @@ import {
 export const api = {
     ensureDemoData: async (currentUser: User) => {
         // 1. Check if Order #505 exists
-        const { data: existingPO } = await supabase
-            .from('purchase_orders')
+        const { data: existingOrder } = await supabase
+            .from('orders')
             .select('*')
             .eq('manufacturer_id', currentUser.company_id)
             .eq('order_number', '505')
             .single();
 
-        if (existingPO) return; // Data already exists
+        if (existingOrder) return; // Data already exists
 
-        // 2. Create Order #505 (this also creates the Overview channel automatically in createPO)
-        await api.createPO(
+        // 2. Create Order #505 (this also creates the Overview channel automatically in createOrder)
+        await api.createOrder(
             currentUser,
             '505',
             'S-BLUE-101',
@@ -72,109 +82,146 @@ export const api = {
         return { user: user as User, company: company as Company };
     },
 
-    signup: async (companyName: string, companyType: 'MANUFACTURER' | 'VENDOR', name: string, phone: string, passcode: string) => {
-        // Validate phone number format (must be exactly 10 digits)
-        if (!/^\d{10}$/.test(phone)) {
-            throw new Error('Phone number must be exactly 10 digits');
-        }
+    signup: async (params: {
+        companyName: string;
+        gstNumber?: string;
+        address?: string;
+        state?: string;
+        pincode?: string;
+        adminName: string;
+        phone: string;
+        passcode: string;
+    }) => {
+        const { companyName, gstNumber, address, state, pincode, adminName, phone, passcode } = params;
 
-        // Validate passcode format (must be exactly 4 digits)
-        if (!/^\d{4}$/.test(passcode)) {
-            throw new Error('Passcode must be exactly 4 digits');
-        }
+        if (!/^\d{10}$/.test(phone)) throw new Error('Phone number must be exactly 10 digits');
+        if (!/^\d{4}$/.test(passcode))  throw new Error('Passcode must be exactly 4 digits');
+        if (pincode && !/^\d{6}$/.test(pincode)) throw new Error('PIN code must be 6 digits');
 
-        // Check if phone number already exists
+        // Block duplicate phone numbers
         const { data: existingUser } = await supabaseAdmin
-            .from('users')
-            .select('id')
-            .eq('phone', phone)
-            .single();
+            .from('users').select('id').eq('phone', phone).single();
+        if (existingUser) throw new Error('This phone number is already registered');
 
-        if (existingUser) {
-            throw new Error('Phone number already registered');
+        // Block duplicate GST (in case they bypassed the Step 1 check)
+        if (gstNumber) {
+            const { data: existingCompany } = await supabaseAdmin
+                .from('companies').select('id').eq('gst_number', gstNumber).single();
+            if (existingCompany) throw new Error('This GST number is already registered on Kramiz');
         }
 
-        // Create new company
+        // Generate a unique Kramiz ID like KRMZ-8A2F9
+        const kramizId = 'KRMZ-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+
+        // Create the company
         const { data: newCompany, error: companyError } = await supabaseAdmin
             .from('companies')
             .insert({
-                name: companyName,
-                type: companyType
+                name:       companyName.trim(),
+                kramiz_id:  kramizId,
+                gst_number: gstNumber || null,
+                address:    address?.trim()  || null,
+                state:      state?.trim()    || null,
+                pincode:    pincode?.trim()  || null,
             })
             .select()
             .single();
 
-        if (companyError) {
-            throw new Error('Failed to create company: ' + companyError.message);
-        }
+        if (companyError) throw new Error('Failed to create company: ' + companyError.message);
 
-        // Create admin user for the company
+        // Create the admin user
         const { data: newUser, error: userError } = await supabaseAdmin
             .from('users')
             .insert({
                 company_id: newCompany.id,
-                name: name,
-                phone: phone,
-                passcode: passcode,
-                role: 'ADMIN'
+                name:       adminName.trim(),
+                phone,
+                passcode,
+                role: 'ADMIN',
             })
             .select()
             .single();
 
-        if (userError) {
-            throw new Error('Failed to create user: ' + userError.message);
+        if (userError) throw new Error('Failed to create user: ' + userError.message);
+
+        // ── Contacts Sync ────────────────────────────────────────────────────
+        // If any company had this GST in their contacts book, link + update them
+        // so their records reflect the verified details Company B just confirmed.
+        if (gstNumber) {
+            await supabaseAdmin
+                .from('contacts')
+                .update({
+                    linked_company_id: newCompany.id,
+                    name:    companyName.trim(),
+                    address: address?.trim()  || null,
+                    state:   state?.trim()    || null,
+                    pincode: pincode?.trim()  || null,
+                })
+                .eq('gst_number', gstNumber)
+                .is('linked_company_id', null); // only unlinked contacts — no-op if none
         }
 
-        return { user: newUser as User, company: newCompany as Company };
+        return { user: newUser as User, company: newCompany as Company, kramizId };
     },
 
     // ============================================
-    // PURCHASE ORDERS
+    // ORDERS
     // ============================================
 
-    getPOs: async (currentUser: User) => {
+    getOrders: async (currentUser: User): Promise<Order[]> => {
         if (!currentUser) throw new Error('User not authenticated');
 
-        const userCompany = await api.getCompany(currentUser.company_id);
+        // ── Visibility rule ───────────────────────────────────────────────────────
+        // ADMIN → sees ALL orders for their company (no channel join needed)
+        // Everyone else → sees only orders where they are a channel member
 
-        if (userCompany?.type === 'MANUFACTURER') {
+        if (currentUser.role === 'ADMIN') {
             const { data, error } = await supabase
-                .from('purchase_orders')
+                .from('orders')
                 .select('*')
                 .eq('manufacturer_id', currentUser.company_id)
                 .order('created_at', { ascending: false });
 
             if (error) throw new Error(error.message);
-            return data as PurchaseOrder[];
-        } else {
-            const { data: channels, error: channelError } = await supabase
-                .from('channels')
-                .select('po_id')
-                .eq('vendor_id', currentUser.company_id);
-
-            if (channelError) throw new Error(channelError.message);
-
-            const poIds = [...new Set(channels.map(ch => ch.po_id))];
-            if (poIds.length === 0) return [];
-
-            const { data, error } = await supabase
-                .from('purchase_orders')
-                .select('*')
-                .in('id', poIds)
-                .order('created_at', { ascending: false });
-
-            if (error) throw new Error(error.message);
-            return data as PurchaseOrder[];
+            return (data || []) as Order[];
         }
+
+        // Non-admin: membership-based visibility
+        const { data: memberChannels, error: memberError } = await supabase
+            .from('channel_members')
+            .select('channel_id')
+            .eq('user_id', currentUser.id);
+
+        if (memberError) throw new Error(memberError.message);
+
+        const channelIds = (memberChannels || []).map(m => m.channel_id);
+        if (channelIds.length === 0) return [];
+
+        const { data: channels } = await supabase
+            .from('channels')
+            .select('order_id')
+            .in('id', channelIds);
+
+        const orderIds = [...new Set((channels || []).map(ch => ch.order_id))];
+        if (orderIds.length === 0) return [];
+
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+            .in('id', orderIds)
+            .order('created_at', { ascending: false });
+
+        if (error) throw new Error(error.message);
+        return (data || []) as Order[];
     },
 
-    createPO: async (currentUser: User, orderNumber: string, styleNumber: string, teamMemberIds: string[]) => {
-        if (!hasPermission(currentUser.role, 'CREATE_PO')) {
-            throw new Error('You do not have permission to create purchase orders');
+    createOrder: async (currentUser: User, orderNumber: string, styleNumber: string, teamMemberIds: string[]): Promise<Order> => {
+        if (!hasPermission(currentUser.role, 'CREATE_ORDER')) {
+            throw new Error('You do not have permission to create orders');
         }
 
-        const { data: newPO, error: poError } = await supabase
-            .from('purchase_orders')
+        const { data: newOrder, error: orderError } = await supabase
+            .from('orders')
             .insert({
                 manufacturer_id: currentUser.company_id,
                 order_number: orderNumber,
@@ -186,12 +233,12 @@ export const api = {
             .select()
             .single();
 
-        if (poError) throw new Error('Failed to create PO: ' + poError.message);
+        if (orderError) throw new Error('Failed to create order: ' + orderError.message);
 
         const { data: overviewChannel, error: channelError } = await supabase
             .from('channels')
             .insert({
-                po_id: newPO.id,
+                order_id: newOrder.id,
                 name: 'Overview',
                 type: 'OVERVIEW',
                 status: 'IN_PROGRESS',
@@ -222,27 +269,122 @@ export const api = {
                 .from('channel_members')
                 .insert(channelMembers);
 
-            if (memberError) console.error('Failed to add default members:', memberError);
+            if (memberError) {
+                console.error('Failed to add default members:', memberError);
+                // We don't necessarily throw here to avoid failing the whole order creation,
+                // but we log it. In a production app, we might want a retry or more robust sync.
+            }
         }
 
-        return newPO as PurchaseOrder;
+        return newOrder as Order;
     },
 
-    updatePOStatus: async (poId: string, status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED') => {
+    /**
+     * Ensures an 'Overview' channel exists for an order.
+     * Useful for orders created before this logic was automated or if creation failed midway.
+     */
+    repairOrderOverview: async (currentUser: User, orderId: string) => {
+        // 1. Initial check
+        const { data: existing } = await supabase
+            .from('channels')
+            .select('id')
+            .eq('order_id', orderId)
+            .eq('type', 'OVERVIEW')
+            .maybeSingle();
+
+        if (existing) return existing;
+
+        try {
+            // 2. Try to create it. If another process beat us to it, the DB unique index (from infra/fix_duplicate_overview.sql)
+            // will catch it, or the check above will miss it in a race condition.
+            const { data: newChannel, error: channelError } = await supabase
+                .from('channels')
+                .insert({
+                    order_id: orderId,
+                    name: 'Overview',
+                    type: 'OVERVIEW',
+                    status: 'IN_PROGRESS',
+                    vendor_id: null
+                })
+                .select()
+                .single();
+
+            // If we hit a unique constraint error (code 23505), just fetch existing and return
+            if (channelError) {
+                const { data: retryExisting } = await supabase
+                    .from('channels')
+                    .select('id')
+                    .eq('order_id', orderId)
+                    .eq('type', 'OVERVIEW')
+                    .maybeSingle();
+                if (retryExisting) return retryExisting;
+                throw new Error('Failed to repair overview channel: ' + channelError.message);
+            }
+
+            // 3. Add default members
+            const { data: admins } = await supabase
+                .from('users')
+                .select('id')
+                .eq('company_id', currentUser.company_id)
+                .eq('role', 'ADMIN');
+
+            const { data: poData } = await supabase
+                .from('orders')
+                .select('created_by')
+                .eq('id', orderId)
+                .single();
+
+            const poCreatorId = poData?.created_by;
+            const adminIds = (admins || []).map(a => a.id);
+            const allMemberIds = Array.from(new Set([...adminIds, currentUser.id, ...(poCreatorId ? [poCreatorId] : [])]));
+
+            if (allMemberIds.length > 0) {
+                const channelMembers = allMemberIds.map(userId => ({
+                    channel_id: newChannel.id,
+                    user_id: userId,
+                    added_by: currentUser.id
+                }));
+                await supabase.from('channel_members').insert(channelMembers);
+            }
+
+            return newChannel;
+        } catch (err) {
+            console.error('[Repair] Conflict or failure:', err);
+            // Fallback second check
+            const { data: finalCheck } = await supabase.from('channels').select('id').eq('order_id', orderId).eq('type', 'OVERVIEW').maybeSingle();
+            return finalCheck;
+        }
+    },
+
+    deleteOrder: async (currentUser: User, orderId: string) => {
+        if (!hasPermission(currentUser.role, 'DELETE_ORDER')) {
+            throw new Error('You do not have permission to delete orders');
+        }
+
+        const { error } = await supabase
+            .from('orders')
+            .delete()
+            .eq('id', orderId)
+            .eq('manufacturer_id', currentUser.company_id);
+
+        if (error) throw new Error('Failed to delete order: ' + error.message);
+    },
+
+    updateOrderStatus: async (orderId: string, status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED'): Promise<Order> => {
         const { data, error } = await supabase
-            .from('purchase_orders')
+            .from('orders')
             .update({ status })
-            .eq('id', poId)
+            .eq('id', orderId)
             .select()
             .single();
 
         if (error) throw new Error(error.message);
-        return data as PurchaseOrder;
+        return data as Order;
     },
 
-    updatePO: async (currentUser: User, poId: string, updates: Partial<PurchaseOrder>) => {
-        if (!hasPermission(currentUser.role, 'EDIT_PO')) {
-            throw new Error('You do not have permission to edit purchase orders');
+    updateOrder: async (currentUser: User, orderId: string, updates: Partial<Order>) => {
+        if (!hasPermission(currentUser.role, 'EDIT_ORDER')) {
+            throw new Error('You do not have permission to edit orders');
         }
 
         const allowedUpdates: any = {};
@@ -252,39 +394,23 @@ export const api = {
         if (updates.image_url !== undefined) allowedUpdates.image_url = updates.image_url;
 
         const { data, error } = await supabase
-            .from('purchase_orders')
+            .from('orders')
             .update(allowedUpdates)
-            .eq('id', poId)
+            .eq('id', orderId)
             .eq('manufacturer_id', currentUser.company_id)
             .select()
             .single();
 
-        if (error) throw new Error('Failed to update PO: ' + error.message);
-        return data as PurchaseOrder;
-    },
-
-    deletePO: async (currentUser: User, poId: string) => {
-        if (!hasPermission(currentUser.role, 'DELETE_PO')) {
-            throw new Error('You do not have permission to delete purchase orders');
-        }
-
-        const { error } = await supabase
-            .from('purchase_orders')
-            .delete()
-            .eq('id', poId)
-            .eq('manufacturer_id', currentUser.company_id);
-
-        if (error) throw new Error('Failed to delete PO: ' + error.message);
+        if (error) throw new Error('Failed to update order: ' + error.message);
+        return data as Order;
     },
 
     // ============================================
     // CHANNELS
     // ============================================
 
-    getChannels: async (currentUser: User, poId: string) => {
-        const userCompany = await api.getCompany(currentUser.company_id);
-
-        let query = supabase
+    getChannels: async (currentUser: User, orderId: string) => {
+        const { data, error } = await supabase
             .from('channels')
             .select(`
                 *,
@@ -292,14 +418,8 @@ export const api = {
                 channel_specs(*),
                 channel_files(*)
             `)
-            .eq('po_id', poId)
+            .eq('order_id', orderId)
             .eq('channel_members.user_id', currentUser.id);
-
-        if (userCompany?.type === 'VENDOR') {
-            query = query.eq('vendor_id', currentUser.company_id);
-        }
-
-        const { data, error } = await query.order('created_at', { ascending: true });
 
         if (error) throw new Error(error.message);
 
@@ -340,54 +460,48 @@ export const api = {
         })) as Channel[];
     },
 
-    createChannel: async (currentUser: User, poId: string, name: string, vendorId: string, channelType: ChannelType = 'VENDOR') => {
+    createChannel: async (currentUser: User, orderId: string, name: string, vendorId?: string | null): Promise<Channel> => {
         if (!hasPermission(currentUser.role, 'CREATE_CHANNEL')) {
-            throw new Error('You do not have permission to create channels');
+            throw new Error('You do not have permission to create groups');
         }
 
-        const { data: newChannel, error } = await supabase
+        const { data: newChannel, error: channelError } = await supabase
             .from('channels')
             .insert({
-                po_id: poId,
+                order_id: orderId,
                 name: name,
-                type: channelType,
-                status: 'PENDING',
-                vendor_id: vendorId || null
+                vendor_id: vendorId || null,
+                type: vendorId ? 'VENDOR' : 'INTERNAL',
+                status: 'ACTIVE'
             })
             .select()
             .single();
 
-        if (error) throw new Error('Failed to create channel: ' + error.message);
+        if (channelError) throw new Error(channelError.message);
 
+        // Auto-add default members (Admins + Current User + Order Creator)
         const { data: admins } = await supabase
             .from('users')
             .select('id')
             .eq('company_id', currentUser.company_id)
             .eq('role', 'ADMIN');
 
-        let allMemberIds = (admins || []).map(a => a.id);
-        allMemberIds.push(currentUser.id);
+        const { data: poData } = await supabase
+            .from('orders')
+            .select('created_by')
+            .eq('id', orderId)
+            .single();
 
-        if (vendorId) {
-            const { data: vendorAdmins } = await supabaseAdmin
-                .from('users')
-                .select('id')
-                .eq('company_id', vendorId)
-                .eq('role', 'ADMIN');
+        const poCreatorId = poData?.created_by;
+        const adminIds = (admins || []).map(a => a.id);
+        const allMemberIds = Array.from(new Set([...adminIds, currentUser.id, ...(poCreatorId ? [poCreatorId] : [])]));
 
-            if (vendorAdmins && vendorAdmins.length > 0) {
-                allMemberIds = [...allMemberIds, ...vendorAdmins.map(a => a.id)];
-            }
-        }
-
-        const uniqueMemberIds = Array.from(new Set(allMemberIds));
-        if (uniqueMemberIds.length > 0) {
-            const channelMembers = uniqueMemberIds.map(userId => ({
+        if (allMemberIds.length > 0) {
+            const channelMembers = allMemberIds.map(userId => ({
                 channel_id: newChannel.id,
                 user_id: userId,
                 added_by: currentUser.id
             }));
-
             await supabase.from('channel_members').insert(channelMembers);
         }
 
@@ -776,56 +890,9 @@ export const api = {
         });
     },
 
-    getPartners: async (currentUser: User) => {
-        const userCompany = await api.getCompany(currentUser.company_id);
-        if (!userCompany) return [];
-        if (userCompany.type === 'MANUFACTURER') {
-            const { data: channels } = await supabase.from('channels').select('vendor_id, channel_members!inner(user_id)').eq('channel_members.user_id', currentUser.id).not('vendor_id', 'is', null);
-            const vendorIds = [...new Set((channels || []).map(ch => ch.vendor_id).filter(Boolean))];
-            if (vendorIds.length === 0) return [];
-            const { data } = await supabase.from('companies').select('*').in('id', vendorIds);
-            return (data || []) as Company[];
-        } else {
-            const { data: channels } = await supabase.from('channels').select('po_id, channel_members!inner(user_id)').eq('channel_members.user_id', currentUser.id);
-            const poIds = [...new Set((channels || []).map(ch => ch.po_id))];
-            if (poIds.length === 0) return [];
-            const { data: pos } = await supabase.from('purchase_orders').select('manufacturer_id').in('id', poIds);
-            const mfgIds = [...new Set((pos || []).map(po => po.manufacturer_id))];
-            if (mfgIds.length === 0) return [];
-            const { data } = await supabase.from('companies').select('*').in('id', mfgIds);
-            return (data || []) as Company[];
-        }
-    },
-
-    getCompany: async (id: string) => {
-        const { data } = await supabase.from('companies').select('*').eq('id', id).single();
-        return (data || null) as Company | null;
-    },
-
     getUser: async (id: string) => {
         const { data } = await supabase.from('users').select('*').eq('id', id).single();
         return (data || null) as User | null;
-    },
-
-    updateCompanyName: async (companyId: string, newName: string) => {
-        const { error } = await supabase
-            .from('companies')
-            .update({ name: newName })
-            .eq('id', companyId);
-
-        if (error) throw new Error('Failed to update company name: ' + error.message);
-    },
-
-    deleteOrganization: async (currentUser: User, companyId: string) => {
-        if (currentUser.role !== 'ADMIN') throw new Error('Only admins can delete organization');
-        if (currentUser.company_id !== companyId) throw new Error('Unauthorized');
-
-        const { error } = await supabaseAdmin
-            .from('companies')
-            .delete()
-            .eq('id', companyId);
-
-        if (error) throw new Error('Failed to delete organization: ' + error.message);
     },
 
     savePushSubscription: async (userId: string, subscription: PushSubscription) => {
@@ -853,5 +920,19 @@ export const api = {
         } else {
             console.log('[Supabase] Push token saved successfully');
         }
-    }
+    },
+
+    // ================================================================
+    // FEATURE MODULES
+    // Add all new Phase features as separate files in client/api/
+    // Then import and spread them here — callers use api.xxx() as usual
+    // ================================================================
+    ...companyApi,         // → client/api/companies.ts
+    ...partnershipApi,     // → client/api/partnerships.ts
+    ...contactsApi,        // → client/api/contacts.ts         (Phase 2.5)
+    ...deliveryChallanApi, // → client/api/deliveryChallans.ts (Phase 3)
+    ...inwardChallanApi,   // → client/api/inwardChallans.ts   (Phase 3)
+    ...salesInvoiceApi,    // → client/api/salesInvoices.ts
+    ...purchaseInvoiceApi, // → client/api/purchaseInvoices.ts
+    ...quotationApi,       // → client/api/quotations.ts        (Phase 3)
 };

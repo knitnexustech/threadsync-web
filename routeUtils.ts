@@ -1,5 +1,5 @@
 
-import { Channel, PurchaseOrder, Company } from './types';
+import { Channel, Order as PurchaseOrder, Company } from './types';
 
 export const generateSlug = (channel: Channel, po: PurchaseOrder, company?: Company) => {
     const companyName = company?.name || 'Kramiz';
@@ -21,7 +21,7 @@ export const findGroupByIdOrSlug = (slug: string | undefined, channels: Channel[
 
     // Then try by slug match
     return channels.find(c => {
-        const po = pos.find(p => p.id === c.po_id);
+        const po = pos.find(p => p.id === c.order_id);
         if (!po) return false;
         return generateSlug(c, po, company) === slug;
     });

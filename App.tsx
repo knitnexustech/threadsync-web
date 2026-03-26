@@ -17,24 +17,38 @@ import WelcomeView from './components/WelcomeView';
 import { findGroupByIdOrSlug } from './routeUtils';
 import { initializeNativePlugins, isNative, scheduleLocalNotification } from './capacitorUtils';
 
+import { DashboardView } from './components/DashboardView';
+import { useLocation } from 'react-router-dom';
+import { SettingsPage } from './components/SettingsPage';
+import { useOnboarding } from './hooks/useOnboarding';
+import { useGlobalNotifications } from './hooks/useGlobalNotifications';
+import { useAppSync } from './hooks/useAppSync';
+
 const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user, onLogout }) => {
     const queryClient = useQueryClient();
     const navigate = useNavigate();
+    const location = useLocation();
     const { groupId } = useParams();
+    const isSettings = location.pathname.startsWith('/settings');
+    const isDashboard = location.pathname.startsWith('/dashboard');
 
-    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-    const [showInstallPopup, setShowInstallPopup] = useState(false);
-    const [runTour, setRunTour] = useState(false);
+    const {
+        deferredPrompt, setDeferredPrompt, showInstallPopup,
+        setShowInstallPopup, runTour, setRunTour, handleInstall,
+        pendingShare, setPendingShare
+    } = useOnboarding();
 
-    // Fetch data for the layout (needed for notifications and tour)
+    useGlobalNotifications(user, groupId);
+
+    // Fetch data for the layout
     const { data: allChannels = [] } = useQuery({
         queryKey: ['channels', user.id],
         queryFn: () => api.getAllChannels(user),
     });
 
-    const { data: pos = [] } = useQuery({
-        queryKey: ['pos', user.id],
-        queryFn: () => api.getPOs(user),
+    const { data: orders = [] } = useQuery({
+        queryKey: ['orders', user.id],
+        queryFn: () => api.getOrders(user),
     });
 
     const { data: userCompany } = useQuery({
@@ -43,92 +57,9 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
         enabled: !!user.company_id
     });
 
-    const selectedChannel = findGroupByIdOrSlug(groupId, allChannels, pos, userCompany || undefined);
-    const selectedPO = selectedChannel ? pos.find(p => p.id === selectedChannel.po_id) || null : null;
+    const selectedChannel = findGroupByIdOrSlug(groupId, allChannels, orders, userCompany || undefined);
+    const selectedOrder = selectedChannel ? orders.find(p => p.id === selectedChannel.order_id) || null : null;
 
-    // Unified function to handle onboarding prompts
-    const showOnboardingPrompts = () => {
-        if (runTour) {
-            setTimeout(showOnboardingPrompts, 5000);
-            return;
-        }
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-        if (deferredPrompt) {
-            setTimeout(() => setShowInstallPopup(true), 15000);
-        }
-    };
-
-    useEffect(() => {
-        const hasOnboarded = localStorage.getItem('kramiz_onboarded');
-        if (!hasOnboarded) {
-            setTimeout(() => setRunTour(true), 1500);
-        }
-        setTimeout(showOnboardingPrompts, 3000);
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            setDeferredPrompt(e);
-        });
-
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible' && !(window as any).isKramizUploading) {
-                queryClient.invalidateQueries();
-            }
-        };
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, []);
-
-    // Global Notifications & Realtime Sync
-    useEffect(() => {
-        if (!user) return;
-
-        const globalMsgSubscription = supabase
-            .channel('global-messages')
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-            }, async (payload) => {
-                const newMsg = payload.new as Message;
-                if (newMsg.user_id === user.id) return;
-
-                // Avoid duplicate notification if current channel is active
-                if (groupId === newMsg.channel_id) return;
-
-                playNotificationSound();
-                triggerVibration();
-
-                if (isNative) {
-                    const { data: ch } = await supabase.from('channels').select('name').eq('id', newMsg.channel_id).single();
-                    const title = ch ? `New Message in ${ch.name}` : 'New Message';
-                    await scheduleLocalNotification(title, newMsg.content, undefined, { channel_id: newMsg.channel_id });
-                } else if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
-                    const { data: ch } = await supabase.from('channels').select('name').eq('id', newMsg.channel_id).single();
-                    const title = ch ? `New Message in ${ch.name}` : 'New Message';
-
-                    if ('serviceWorker' in navigator) {
-                        const reg = await navigator.serviceWorker.ready;
-                        reg.showNotification(title, {
-                            body: newMsg.content,
-                            icon: '/Kramiz%20app%20icon.png',
-                            badge: '/favicon.png',
-                            tag: newMsg.channel_id,
-                            renotify: true
-                        } as any);
-                    } else {
-                        new Notification(title, { body: newMsg.content });
-                    }
-                }
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(globalMsgSubscription);
-        };
-    }, [user, groupId]);
 
     return (
         <MainLayout
@@ -138,14 +69,19 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
             setDeferredPrompt={setDeferredPrompt}
             setRunTour={setRunTour}
             runTour={runTour}
+            isSettings={isSettings}
         >
-            {groupId ? (
-                selectedChannel && selectedPO ? (
+            {isSettings ? (
+                <SettingsPage currentUser={user} onLogout={onLogout} />
+            ) : isDashboard ? (
+                <DashboardView currentUser={user} />
+            ) : groupId ? (
+                selectedChannel && selectedOrder ? (
                     <ChatRoom
                         currentUser={user}
                         channel={selectedChannel}
-                        po={selectedPO}
-                        onBack={() => navigate('/')}
+                        order={selectedOrder}
+                        onBack={() => navigate('/chats')}
                     />
                 ) : (
                     <div className="flex-1 flex items-center justify-center bg-white">
@@ -171,13 +107,7 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
                         </div>
                         <div className="mt-6 flex gap-3">
                             <button
-                                onClick={() => {
-                                    deferredPrompt.prompt();
-                                    deferredPrompt.userChoice.then(() => {
-                                        setDeferredPrompt(null);
-                                        setShowInstallPopup(false);
-                                    });
-                                }}
+                                onClick={handleInstall}
                                 className="flex-1 py-3 bg-[#008069] text-white rounded-xl font-bold text-sm hover:bg-[#006a57] shadow-lg transition-all active:scale-95"
                             >
                                 Install Now
@@ -196,6 +126,64 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
                     localStorage.setItem('kramiz_onboarded', 'true');
                 }}
             />
+
+            {/* Inward Share Modal */}
+            {pendingShare && (
+                <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                            <div className="flex flex-col text-left">
+                                <span className="text-[10px] font-black text-[#008069] uppercase tracking-widest">Share to Kramiz</span>
+                                <h3 className="font-bold text-gray-900">Select a Group</h3>
+                            </div>
+                            <button onClick={() => setPendingShare(null)} className="p-2 text-gray-400 hover:text-gray-600 bg-white rounded-full shadow-sm">✕</button>
+                        </div>
+                        
+                        <div className="p-4 max-h-[70vh] overflow-y-auto space-y-3">
+                            <div className="p-3 bg-green-50 rounded-xl border border-green-100 mb-4 text-left">
+                                <p className="text-[10px] font-bold text-green-700 uppercase tracking-tighter mb-1">Sharing Content:</p>
+                                <p className="text-xs text-green-900 truncate font-medium">{pendingShare.content || 'File Attachment'}</p>
+                            </div>
+
+                            {orders.map(order => {
+                                const orderChannels = allChannels.filter(c => c.order_id === order.id);
+                                if (orderChannels.length === 0) return null;
+                                
+                                return (
+                                    <div key={order.id} className="space-y-2 text-left">
+                                        <div className="px-2 py-1 bg-gray-100 rounded text-[10px] font-black text-gray-400 uppercase tracking-widest">{order.order_number} - {order.style_number}</div>
+                                        {orderChannels.map(ch => (
+                                            <button 
+                                                key={ch.id} 
+                                                onClick={async () => {
+                                                    try {
+                                                        const targetChannel = ch.id;
+                                                        if (pendingShare.url) {
+                                                            await api.sendMessage(user, targetChannel, `[SHARED FROM OTHER APP] ${pendingShare.content || ''}`);
+                                                            await api.sendMessage(user, targetChannel, `[FILE]${pendingShare.url}|Shared from other app`);
+                                                        } else {
+                                                            await api.sendMessage(user, targetChannel, pendingShare.content);
+                                                        }
+                                                        setPendingShare(null);
+                                                        navigate(`/group/${ch.id}`);
+                                                        alert('Shared successfully!');
+                                                    } catch (err: any) {
+                                                        alert('Share failed: ' + err.message);
+                                                    }
+                                                }}
+                                                className="w-full text-left p-4 border border-gray-100 rounded-2xl hover:bg-green-50 transition-colors flex items-center justify-between group bg-white shadow-sm"
+                                            >
+                                                <span className="font-bold text-gray-700">{ch.name}</span>
+                                                <span className="text-[#008069] opacity-0 group-hover:opacity-100 font-black">SEND →</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
         </MainLayout>
     );
 };
@@ -217,7 +205,9 @@ const AppRoutes: React.FC<{
 
             {/* Protected App Routes */}
             <Route path="/dashboard" element={user ? <AuthenticatedApp user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />} />
+            <Route path="/chats" element={user ? <AuthenticatedApp user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />} />
             <Route path="/group/:groupId" element={user ? <AuthenticatedApp user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />} />
+            <Route path="/settings" element={user ? <AuthenticatedApp user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -226,83 +216,10 @@ const AppRoutes: React.FC<{
 };
 
 const App: React.FC = () => {
-    const [user, setUser] = useState<User | null>(null);
-    const [isRestoringSession, setIsRestoringSession] = useState(true);
+    const {
+        user, isRestoringSession, handleLogin, handleLogout, handleDemoLogin
+    } = useAppSync();
 
-    useEffect(() => {
-        const initApp = async () => {
-            try {
-                // Initialize native plugins (Permissions, Status Bar, Channels, etc.)
-                await initializeNativePlugins({
-                    onTokenReceived: (token) => {
-                        console.log('[Native] Token received:', token);
-                        localStorage.setItem('native_push_token', token);
-                        // If user is already loaded, save it now
-                        const savedUser = loadSession();
-                        if (savedUser) {
-                            api.saveNativePushToken(savedUser.id, token);
-                        }
-                    },
-                    onNotificationAction: (action) => {
-                        console.log('[Native] Notification action:', action);
-                        const data = action.notification?.data;
-                        if (data && data.channel_id) {
-                            // Navigate to the channel
-                            window.location.hash = `#/group/${data.channel_id}`;
-                        }
-                    }
-                });
-
-                const savedUser = loadSession();
-                if (savedUser) {
-                    setUser(savedUser);
-                    // If we already have a token, save it
-                    const token = localStorage.getItem('native_push_token');
-                    if (token) {
-                        api.saveNativePushToken(savedUser.id, token);
-                    }
-                }
-            } catch (err) {
-                console.error("Session restoration failed:", err);
-                clearSession();
-            } finally {
-                setIsRestoringSession(false);
-            }
-        };
-        initApp();
-    }, []);
-
-    const handleLogin = (loggedInUser: User, rememberMe: boolean) => {
-        saveSession(loggedInUser, rememberMe);
-        setUser(loggedInUser);
-
-        // Save native token on login
-        const token = localStorage.getItem('native_push_token');
-        if (token) {
-            api.saveNativePushToken(loggedInUser.id, token);
-        }
-    };
-
-    const handleLogout = () => {
-        clearSession();
-        setUser(null);
-    };
-
-    const handleDemoLogin = async () => {
-        const mask = document.getElementById('global-loader');
-        if (mask) mask.style.display = 'flex';
-        try {
-            const { user: demoUser } = await api.login('9876543210', '1234');
-            await api.ensureDemoData(demoUser);
-            saveSession(demoUser, true);
-            setUser(demoUser);
-        } catch (err) {
-            console.error('Demo login failed:', err);
-            alert('Demo is currently unavailable.');
-        } finally {
-            if (mask) mask.style.display = 'none';
-        }
-    };
 
     if (isRestoringSession) {
         return (
