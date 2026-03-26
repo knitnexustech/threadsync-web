@@ -555,6 +555,9 @@ export const api = {
             throw new Error('Failed to send message: ' + error.message);
         }
 
+        // Auto-mark as read for the sender
+        await api.markChannelAsRead(currentUser, channelId);
+
         return {
             ...data,
             timestamp: data.created_at

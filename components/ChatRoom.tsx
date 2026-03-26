@@ -9,6 +9,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { playNotificationSound, triggerVibration } from '../notificationUtils';
 import { supabase } from '../supabaseClient';
 import { generateSlug } from '../routeUtils';
+import { Share } from '@capacitor/share';
+import { isNative } from '../capacitorUtils';
 
 interface ChatRoomProps {
     currentUser: User;
@@ -46,6 +48,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
     const [hasPerformedInitialScroll, setHasPerformedInitialScroll] = useState(false);
     const initialLastReadAtRef = useRef<string | undefined>(channel.last_read_at);
 
+    const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+
     // Queries
     const { data: messages = [], isLoading: loadingMessages } = useQuery({
         queryKey: ['messages', channel.id],
@@ -57,10 +61,25 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         queryFn: () => api.getChannelMembers(channel.id),
     });
 
+    const { data: allChannels = [] } = useQuery({
+        queryKey: ['channels', currentUser.id],
+        queryFn: () => api.getAllChannels(currentUser),
+    });
+    const siblingChannels = allChannels.filter(c => c.po_id === po.id && c.id !== channel.id);
+
     const loading = loadingMessages || loadingMembers;
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Auto-resize textarea
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+        }
+    }, [newMessage]);
 
     // ROLE-BASED PERMISSIONS
     const canAddMembers = hasPermission(currentUser.role, 'ADD_CHANNEL_MEMBER');
@@ -223,6 +242,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['messages', channel.id] });
+            queryClient.invalidateQueries({ queryKey: ['channels'] }); // Auto-clear unread state in Sidebar
         }
     });
 
@@ -246,6 +266,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             handleRefresh();
             setIsEditingGroupName(false);
         }
+    });
+
+    const forwardMessageMutation = useMutation({
+        mutationFn: async (targetChannelId: string) => {
+            if (!forwardingMessage) return;
+            await api.sendMessage(currentUser, targetChannelId, forwardingMessage.content);
+        },
+        onSuccess: () => {
+            setForwardingMessage(null);
+            alert('Forwarded successfully!');
+        },
+        onError: (err: any) => alert('Failed to forward: ' + err.message)
     });
 
 
@@ -317,12 +349,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
         }
     }, [messages, loadingMessages, hasPerformedInitialScroll, currentUser.id]);
 
-    const handleSend = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSend = async (e?: React.FormEvent | React.KeyboardEvent) => {
+        if (e) e.preventDefault();
         if (!newMessage.trim()) return;
         const msg = newMessage;
         setNewMessage('');
         sendMessageMutation.mutate({ content: msg });
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
     };
 
     const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -510,7 +543,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                 </div>
             );
         }
-        return <div className="text-gray-900 break-words">{content}</div>;
+        return <div className="text-gray-900 break-words whitespace-pre-wrap">{content}</div>;
     }
 
     const handleAddMember = async () => {
@@ -589,21 +622,57 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                             const isDeleted = msg.content?.startsWith('[DELETED]');
                             const canDelete = canDeleteMessage(msg) && !isDeleted;
                             const showDropdown = openDropdownId === msg.id;
+
+                            const handlePinSpec = async () => {
+                                setOpenDropdownId(null);
+                                try {
+                                    await api.addSpecToChannel(currentUser, channel.id, msg.content);
+                                    queryClient.invalidateQueries({ queryKey: ['specs', channel.id] });
+                                    alert('Pinned to Specs!');
+                                } catch (e) { alert('Failed to pin to specs'); }
+                            };
+
+                            const handleShareMessage = async () => {
+                                setOpenDropdownId(null);
+                                try {
+                                    if (msg.content?.startsWith('[FILE]')) {
+                                        const parts = msg.content.split('|');
+                                        const url = parts[0].replace('[FILE]', '').trim();
+                                        await Share.share({ url, dialogTitle: 'Share Link' });
+                                    } else if (msg.content?.startsWith('[AUDIO]')) {
+                                        const url = msg.content.replace('[AUDIO]', '').trim();
+                                        await Share.share({ url, dialogTitle: 'Share Link' });
+                                    } else {
+                                        await Share.share({ text: msg.content, dialogTitle: 'Share Message' });
+                                    }
+                                } catch(e) { console.error('Share error', e); }
+                            };
+
                             if (isSystem) return <div key={msg.id} className="flex justify-center my-3"><span className="bg-[#d5f4e6] text-gray-700 text-xs px-4 py-1.5 rounded-full shadow-sm">{msg.content}</span></div>;
                             return (
-                                <div key={msg.id} id={`msg-${msg.id}`} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} group max-w-full`}>
-                                    {isMe && canDelete && (
-                                        <button
-                                            onClick={() => setDeletingMessageId(msg.id)}
-                                            className="p-2 text-gray-300 hover:text-red-500 active:text-red-600 transition-colors duration-200 mb-1 flex-shrink-0"
-                                            title="Delete message"
-                                        >
-                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                    <div className={`max-w-[75%] rounded-xl px-3 py-1.5 shadow-sm text-sm relative ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none'}`}>
+                                <div key={msg.id} id={`msg-${msg.id}`} className={`flex flex-col gap-1 items-end ${isMe ? 'items-end' : 'items-start'} max-w-full relative`}>
+                                    <div className={`max-w-[80%] rounded-xl px-3 py-1.5 shadow-sm text-sm relative group ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none'}`}>
+                                        
+                                        {!isDeleted && (
+                                            <button 
+                                                onClick={() => setOpenDropdownId(showDropdown ? null : msg.id)}
+                                                className={`absolute top-1 right-1 p-1 rounded-full transition-colors z-10 bg-white/50 backdrop-blur-sm shadow-sm md:opacity-0 group-hover:opacity-100 ${showDropdown ? 'opacity-100 text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                                            </button>
+                                        )}
+
+                                        {showDropdown && !isDeleted && (
+                                            <div className="absolute top-8 right-2 bg-white shadow-xl rounded-lg py-1 w-44 z-20 border border-gray-100 animate-in fade-in zoom-in-95 duration-100">
+                                                <button onClick={handlePinSpec} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">📌 Pin to Specs</button>
+                                                <button onClick={() => { setOpenDropdownId(null); setForwardingMessage(msg); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">🔄 Forward</button>
+                                                <button onClick={handleShareMessage} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">📤 Share Native</button>
+                                                {isMe && canDelete && (
+                                                    <button onClick={() => { setOpenDropdownId(null); setDeletingMessageId(msg.id); }} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-gray-100">🗑️ Delete</button>
+                                                )}
+                                            </div>
+                                        )}
+                                        
                                         {!isMe && (
                                             <div className="mb-1 flex items-center gap-2">
                                                 <span className="text-[14px] font-bold text-[#008069] leading-tight">{msg.user?.name}</span>
@@ -612,7 +681,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                                                 </span>
                                             </div>
                                         )}
-                                        <div className="pr-20 pb-1">{isDeleted ? <div className="text-gray-400 italic text-[11px]">Deleted</div> : renderMessageContent(msg.content)}</div>
+                                        <div className="pr-12 pb-1">{isDeleted ? <div className="text-gray-400 italic text-[11px]">Deleted</div> : renderMessageContent(msg.content)}</div>
                                         <div className="text-[9px] text-gray-400 absolute bottom-1 right-2">
                                             {new Date(msg.timestamp).toLocaleDateString([], { day: '2-digit', month: 'short' })} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </div>
@@ -657,7 +726,23 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
                                 </div>
                             )}
 
-                            <input id="tour-chat-input" type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend(e)} placeholder="Type a message..." className="flex-1 py-2.5 px-4 rounded-full border-none focus:ring-0 text-sm shadow-sm" />
+                            <textarea
+                                id="tour-chat-input"
+                                ref={textareaRef}
+                                value={newMessage}
+                                onChange={(e) => setNewMessage(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey && !isNative) {
+                                        // On Desktop: Enter sends, Shift+Enter new line
+                                        e.preventDefault();
+                                        handleSend(e);
+                                    }
+                                    // On Mobile: Enter is handled by keyboard (usually newline in textarea)
+                                }}
+                                placeholder="Type a message..."
+                                className="flex-1 py-2.5 px-4 rounded-2xl border-none focus:ring-0 text-sm shadow-sm resize-none overflow-y-auto max-h-[120px] bg-white leading-relaxed"
+                                rows={1}
+                            />
 
                             {newMessage.trim() || isUploading ? (
                                 <button type="button" onClick={handleSend} disabled={!newMessage.trim() || isUploading} className={`p-3 rounded-full shadow-md transition-all active:scale-95 ${newMessage.trim() ? 'bg-[#008069] text-white' : 'bg-gray-300 text-gray-500'}`}>
@@ -716,6 +801,30 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, po, on
             )}
 
             <Modal isOpen={deletingMessageId !== null} onClose={() => setDeletingMessageId(null)} title="Delete Message?"><div className="space-y-4"><p className="text-sm">Delete this message? This action is permanent.</p><div className="flex gap-3 justify-end"><button onClick={() => setDeletingMessageId(null)} className="px-4 py-2 bg-gray-200 rounded">Cancel</button><button onClick={confirmDeleteMessage} className="px-4 py-2 bg-red-600 text-white rounded">Delete</button></div></div></Modal>
+            
+            <Modal isOpen={forwardingMessage !== null} onClose={() => setForwardingMessage(null)} title="Forward To...">
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {siblingChannels.length === 0 ? (
+                        <p className="text-sm text-gray-500 py-4 text-center">No other groups in this Purchase Order to forward to.</p>
+                    ) : (
+                        siblingChannels.map(ch => (
+                            <button 
+                                key={ch.id} 
+                                onClick={() => forwardMessageMutation.mutate(ch.id)}
+                                disabled={forwardMessageMutation.isPending}
+                                className="w-full text-left p-4 border border-gray-100 rounded-xl hover:bg-green-50 focus:bg-green-50 transition-colors flex items-center justify-between group"
+                            >
+                                <div>
+                                    <p className="font-bold text-gray-800">{ch.name}</p>
+                                    <p className="text-[10px] text-gray-500 uppercase">{po.order_number}</p>
+                                </div>
+                                <span className="text-green-600 opacity-0 group-hover:opacity-100 font-black">→</span>
+                            </button>
+                        ))
+                    )}
+                </div>
+            </Modal>
+            
             <Modal isOpen={showAddMemberModal} onClose={() => setShowAddMemberModal(false)} title="Add Members" footer={<button onClick={commitAddMembers} disabled={selectedUserIds.size === 0 || isAdding} className={`px-4 py-2 rounded ${selectedUserIds.size > 0 ? 'bg-[#008069] text-white' : 'bg-gray-300'}`}>{isAdding ? 'Adding...' : 'Add Selected'}</button>}>
                 <div className="max-h-80 overflow-y-auto space-y-2">{teamMembers.map(user => { const added = members.some(m => m.id === user.id); return (<div key={user.id} className={`flex items-center justify-between p-3 border rounded ${added ? 'bg-gray-50 opacity-60' : 'bg-white'}`}><div className="flex items-center gap-3"><div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center font-bold">{user.name[0]}</div><div><p className="text-sm font-medium">{user.name}</p><p className="text-xs text-gray-500">{user.role}</p></div></div>{added ? <span className="text-xs text-green-600 font-bold">Added</span> : <input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleMemberSelection(user.id)} />}</div>); })}</div>
             </Modal>

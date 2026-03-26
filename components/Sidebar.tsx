@@ -417,7 +417,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                 ) : activeTab === 'ORDERS' ? (
                     <React.Fragment>
                         {(() => {
-                            const filteredPos = pos.filter(po => po.order_number.toLowerCase().includes(globalSearchQuery.toLowerCase()) || po.style_number?.toLowerCase().includes(globalSearchQuery.toLowerCase()));
+                            const filteredPos = pos.filter(po => po.order_number.toLowerCase().includes(globalSearchQuery.toLowerCase()) || po.style_number?.toLowerCase().includes(globalSearchQuery.toLowerCase())).sort((a, b) => {
+                                const statusOrder: Record<string, number> = { 'IN_PROGRESS': 0, 'PENDING': 1, 'COMPLETED': 2 };
+                                const orderA = statusOrder[a.status] ?? 3;
+                                const orderB = statusOrder[b.status] ?? 3;
+                                if (orderA !== orderB) return orderA - orderB;
+                                const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                                const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                                return dateB - dateA;
+                            });
 
                             // If no orders and tour is active, show GHOST data
                             if (filteredPos.length === 0 && isTourActive) {

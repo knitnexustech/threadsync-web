@@ -16,6 +16,7 @@ import { ChatRoom } from './components/ChatRoom';
 import WelcomeView from './components/WelcomeView';
 import { findGroupByIdOrSlug } from './routeUtils';
 import { initializeNativePlugins, isNative, scheduleLocalNotification } from './capacitorUtils';
+import { SendIntent } from '@mindlib-capacitor/send-intent';
 
 const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user, onLogout }) => {
     const queryClient = useQueryClient();
@@ -72,13 +73,38 @@ const AuthenticatedApp: React.FC<{ user: User; onLogout: () => void }> = ({ user
             setDeferredPrompt(e);
         });
 
+        // Initialize Share Target Listener
+        const checkIncomingShare = async () => {
+            try {
+                const result = await SendIntent.checkSendIntentReceived();
+                if (result && (result.title || result.url || result.description)) {
+                    // For now, securely catch the share and notify the user until UI is fully built
+                    let description = result.description || 'a message';
+                    if (result.type?.includes('image')) description = 'an image';
+                    if (result.url) description = 'a file';
+                    
+                    alert(`Kramiz received ${description} from another app! You can share this to a chat soon.`);
+                }
+            } catch (err) { }
+        };
+
+        if (isNative) {
+            checkIncomingShare();
+            // In Android, tapping Kramiz in the share menu might resume the app and trigger a custom app event
+            window.addEventListener('appUrlOpen', () => checkIncomingShare());
+        }
+
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible' && !(window as any).isKramizUploading) {
                 queryClient.invalidateQueries();
+                if (isNative) checkIncomingShare();
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('appUrlOpen', checkIncomingShare);
+        };
     }, []);
 
     // Global Notifications & Realtime Sync
