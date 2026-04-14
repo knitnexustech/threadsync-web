@@ -20,7 +20,7 @@
 import React, { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../supabaseAPI';
-import { User, DCItem, Contact, Company, Driver, Order } from '../../../types';
+import { User, DCItem, Contact, Company, Order, DeliveryChallan } from '../../../types';
 import { ItemsTable } from './ItemsTable';
 
 interface DCFormProps {
@@ -37,9 +37,10 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
 
     // ── Form state ─────────────────────────────────────────────────────────────
     const [recipientSearch, setRecipientSearch]   = useState('');
-    const [selectedRecipient, setSelectedRecipient] = useState<{ id: string, type: 'partner' | 'contact', name: string } | null>(
+    const [selectedRecipient, setSelectedRecipient] = useState<{ id: string, companyId?: string, type: 'partner' | 'contact', name: string } | null>(
         initialData ? { 
             id: initialData.receiver_company_id || initialData.receiver_contact_id || '', 
+            companyId: initialData.receiver_company_id,
             type: initialData.receiver_company_id ? 'partner' : 'contact', 
             name: (initialData as any).receiver_company?.name || (initialData as any).receiver_contact?.name || 'Selected Recipient'
         } : null
@@ -55,7 +56,6 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [notes, setNotes]                   = useState(initialData?.notes || '');
     const [saving, setSaving]                 = useState(false);
-    const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
 
     const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,15 +70,10 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
         queryFn:  () => api.getContacts(currentUser),
     });
 
-    const { data: savedDrivers = [] } = useQuery<Driver[]>({
-        queryKey: ['drivers', currentUser.company_id],
-        queryFn:  () => api.getDrivers(currentUser),
-    });
-
     // --- Derived Data ---
     const allPossibleRecipients = [
-        ...partners.map(p => ({ id: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
-        ...contacts.map(c => ({ id: c.id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
+        ...partners.map(p => ({ id: p.id, companyId: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
+        ...contacts.map(c => ({ id: c.id, companyId: c.linked_company_id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
     ].filter(s => s.name.toLowerCase().includes(recipientSearch.toLowerCase()));
 
     const { data: orders = [] } = useQuery<Order[]>({
@@ -98,13 +93,7 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
         finally { setUploadingPhoto(false); }
     };
 
-    // ── Use saved driver ───────────────────────────────────────────────────────
-    const applyDriver = (driver: Driver) => {
-        setSelectedDriver(driver);
-        setDriverName(driver.name);
-        setDriverPhone(driver.phone || '');
-        setDriverPhotoUrl(driver.photo_url || '');
-    };
+    // ── Photo upload ───────────────────────────────────────────────────────────
 
     // ── Submit ─────────────────────────────────────────────────────────────────
     const handleSubmit = async () => {
@@ -116,7 +105,7 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
         setSaving(true);
         try {
             const dcData = {
-                receiver_company_id: selectedRecipient.type === 'partner' ? selectedRecipient.id : undefined,
+                receiver_company_id: selectedRecipient.companyId || (selectedRecipient.type === 'partner' ? selectedRecipient.id : undefined),
                 receiver_contact_id: selectedRecipient.type === 'contact' ? selectedRecipient.id : undefined,
                 order_number:        orderId || undefined,
                 ref_order_number:    refOrderNumber || undefined,
@@ -131,15 +120,6 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
             const dc = initialData 
                 ? await api.updateDeliveryChallan(currentUser, initialData.id, dcData)
                 : await api.createDeliveryChallan(currentUser, { channel_id: channelId, ...dcData });
-
-            // Save driver profile if new (has a name, not a pre-saved driver)
-            if (driverName && !selectedDriver) {
-                await api.saveDriver(currentUser, {
-                    name:      driverName,
-                    phone:     driverPhone || undefined,
-                    photo_url: driverPhotoUrl || undefined,
-                });
-            }
 
             onCreated(dc.id, dc.dc_number);
         } catch (err: any) {
@@ -282,26 +262,6 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
                     {/* ─ Section 4: Driver ────────────────────────────────── */}
                     <div>
                         <SectionTitle emoji="🚚" title="Driver / Courier" subtitle="Optional — for proof of pickup" />
-
-                        {/* Saved drivers quick-select */}
-                        {savedDrivers.length > 0 && (
-                            <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
-                                {savedDrivers.map(d => (
-                                    <button key={d.id} onClick={() => applyDriver(d)}
-                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border flex-shrink-0 transition-all ${
-                                            selectedDriver?.id === d.id
-                                                ? 'bg-[#008069] text-white border-[#008069]'
-                                                : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#008069]'
-                                        }`}>
-                                        {d.photo_url
-                                            ? <img src={d.photo_url} className="w-5 h-5 rounded-full object-cover" alt="" />
-                                            : <span>🚚</span>
-                                        }
-                                        {d.name}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
 
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3">

@@ -10,6 +10,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, InwardChallan, hasPermission } from '../../types';
 import { api } from '../../supabaseAPI';
+import { resolveFrom } from '../../services/partnerUtils';
 import { InwardChallanForm } from './components/InwardChallanForm';
 import { SubScreenHeader, EmptyState, fmtDate } from '../orders/shared';
 
@@ -18,7 +19,7 @@ interface AllInwardChallansScreenProps {
     onBack: () => void;
 }
 
-const BLANK_ITEM = { description: '', quantity: 0, unit: 'KG' };
+const BLANK_ITEM = { description: '', quantity: 0, unit: 'MTR' };
 
 export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = ({ currentUser, onBack }) => {
     const qc = useQueryClient();
@@ -79,22 +80,22 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
                                     📥
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-[15px] text-gray-900 font-bold truncate">{ic.ic_number}</p>
-                                    <p className="text-[12px] text-gray-500 font-medium">
-                                        <span className="text-gray-400">From: </span>
-                                        {(ic as any).sender_company?.name || (ic as any).sender_contact?.name || 'Manual Contact'}
+                                    <p className="text-[15px] text-black font-bold truncate">{ic.ic_number}</p>
+                                    <p className="text-[14px] text-gray-800 font-medium">
+                                        <span className="text-gray-600">From: </span>
+                                        {resolveFrom(ic)?.name || 'Unknown Partner'}
                                     </p>
-                                    <p className="text-[10px] text-gray-400 uppercase font-black tracking-tighter mt-1">
+                                    <p className="text-[12px] text-gray-600 uppercase font-regular tracking-tighter mt-1">
                                         Received {fmtDate(ic.created_at)}
                                     </p>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     {ic.discrepancies ? (
-                                        <span className="text-[9px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter border border-red-100">
+                                        <span className="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter border border-red-100">
                                             Issues Found
                                         </span>
                                     ) : (
-                                        <span className="text-[9px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter border border-green-100">
+                                        <span className="text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter border border-green-100">
                                             Clear Receipt
                                         </span>
                                     )}
@@ -118,16 +119,6 @@ export const AllInwardChallansScreen: React.FC<AllInwardChallansScreenProps> = (
                     )}
                 </div>
             </div>
-            {canCreate && !creating && (
-                <button 
-                    onClick={() => setCreating(true)}
-                    className="fixed right-6 bottom-24 w-14 h-14 bg-[#008069] text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50"
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
-                    </svg>
-                </button>
-            )}
         </div>
     );
 };

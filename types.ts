@@ -168,10 +168,11 @@ export interface DeliveryChallan {
   driver_phone?:        string;
   driver_photo_url?:    string;
   notes?:               string;
-  status:               'PENDING' | 'RECEIVED' | 'DISPUTED';
+  status:               'CANCELLED' | 'RECEIVED' | 'RETURNED';
   created_at?:          string;
   sender_company?:      Company;
   receiver_company?:    Company;
+  receiver_contact?:    Contact;
 }
 
 /** Inward Challan — created by the receiver when goods arrive. */
@@ -190,6 +191,7 @@ export interface InwardChallan {
   notes?:               string;
   created_at?:          string;
   sender_company?:      Company;
+  sender_contact?:      Contact;
   receiver_company?:    Company;
 }
 
@@ -246,6 +248,7 @@ export interface Invoice {
   seller_company_id: string;          // always the creator's company
   buyer_company_id?: string;          // Kramiz partner
   buyer_contact_id?: string;          // manual contact (offline buyer)
+  seller_contact_id?: string;         // manual contact (offline seller)
   order_id?:         string;          // linked Purchase Order (optional)
   channel_id?:       string;          // linked chat channel (optional)
   linked_dc_ids:     string[];        // array of DC IDs this invoice covers
@@ -263,6 +266,7 @@ export interface Invoice {
   updated_at?:       string;
   // Joined for display
   seller_company?:   Company;
+  seller_contact?:   Contact;
   buyer_company?:    Company;
   buyer_contact?:    Contact;
 }

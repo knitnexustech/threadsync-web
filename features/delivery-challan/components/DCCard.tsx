@@ -24,15 +24,15 @@ interface DCCardProps {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-    PENDING:  'bg-amber-100 text-amber-700',
-    RECEIVED: 'bg-green-100 text-green-700',
-    DISPUTED: 'bg-red-100  text-red-600',
+    COMPLETED: 'bg-green-50 text-green-700 border-green-100',
+    BILLED:    'bg-blue-50 text-blue-700 border-blue-100',
+    CANCELLED: 'bg-red-50  text-red-700  border-red-100',
 };
 
 const STATUS_LABEL: Record<string, string> = {
-    PENDING:  '⏳ Awaiting Confirmation',
-    RECEIVED: '✓  Received',
-    DISPUTED: '⚠  Disputed',
+    COMPLETED: '✓ Ready to Bill',
+    BILLED:    '💰 Billed',
+    CANCELLED: '✕ Cancelled',
 };
 
 export const DCCard: React.FC<DCCardProps> = ({ dcId, currentUser, onStatusChange }) => {
@@ -44,26 +44,26 @@ export const DCCard: React.FC<DCCardProps> = ({ dcId, currentUser, onStatusChang
         api.getDCById(dcId).then(data => { setDC(data); setLoading(false); });
     }, [dcId]);
 
-    const isReceiver = dc?.receiver_company_id === currentUser.company_id;
+    const isSender = dc?.sender_company_id === currentUser.company_id;
 
-    const handleMarkReceived = async () => {
+    const handleMarkBilled = async () => {
         if (!dc || acting) return;
         setActing(true);
         try {
-            await api.markDCReceived(currentUser, dc.id);
-            setDC(d => d ? { ...d, status: 'RECEIVED' } : d);
+            await api.markDCBilled(currentUser, dc.id);
+            setDC(d => d ? { ...d, status: 'BILLED' } : d);
             onStatusChange?.();
         } catch (err: any) { alert(err.message); }
         finally { setActing(false); }
     };
 
-    const handleDispute = async () => {
+    const handleCancel = async () => {
         if (!dc || acting) return;
-        if (!confirm('Mark this DC as disputed? This will notify the sender.')) return;
+        if (!confirm('Are you sure you want to cancel this challan?')) return;
         setActing(true);
         try {
-            await api.markDCDisputed(currentUser, dc.id);
-            setDC(d => d ? { ...d, status: 'DISPUTED' } : d);
+            await api.markDCCancelled(currentUser, dc.id);
+            setDC(d => d ? { ...d, status: 'CANCELLED' } : d);
             onStatusChange?.();
         } catch (err: any) { alert(err.message); }
         finally { setActing(false); }
@@ -94,7 +94,7 @@ export const DCCard: React.FC<DCCardProps> = ({ dcId, currentUser, onStatusChang
                             {dc.receiver_company?.name ?? 'Contact'}
                         </p>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full flex-shrink-0 ${STATUS_STYLES[dc.status]}`}>
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full flex-shrink-0 border ${STATUS_STYLES[dc.status]}`}>
                         {STATUS_LABEL[dc.status]}
                     </span>
                 </div>
@@ -146,22 +146,22 @@ export const DCCard: React.FC<DCCardProps> = ({ dcId, currentUser, onStatusChang
                 </div>
             )}
 
-            {/* Receiver actions */}
-            {isReceiver && dc.status === 'PENDING' && (
+            {/* Sender actions */}
+            {isSender && dc.status === 'COMPLETED' && (
                 <div className="px-4 pb-4 pt-2 flex gap-2 border-t border-gray-100">
                     <button
-                        onClick={handleDispute}
+                        onClick={handleCancel}
                         disabled={acting}
-                        className="flex-1 py-2 border-2 border-red-200 text-red-500 rounded-xl text-xs font-black hover:bg-red-50 disabled:opacity-40 transition-all"
+                        className="flex-1 py-2 border-2 border-red-100 text-red-500 rounded-xl text-xs font-black hover:bg-red-50 disabled:opacity-40 transition-all"
                     >
-                        Dispute
+                        Cancel
                     </button>
                     <button
-                        onClick={handleMarkReceived}
+                        onClick={handleMarkBilled}
                         disabled={acting}
-                        className="flex-[2] py-2 bg-green-600 text-white rounded-xl text-xs font-black hover:bg-green-700 disabled:opacity-40 transition-all"
+                        className="flex-[2] py-2 bg-[#008069] text-white rounded-xl text-xs font-black hover:bg-[#006a57] disabled:opacity-40 transition-all shadow-sm"
                     >
-                        {acting ? 'Updating...' : '✓ Mark Received'}
+                        {acting ? 'Updating...' : '💰 Mark as Billed'}
                     </button>
                 </div>
             )}

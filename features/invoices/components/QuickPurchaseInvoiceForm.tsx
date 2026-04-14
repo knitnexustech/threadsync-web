@@ -22,9 +22,10 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
     
     // --- State ---
     const [sellerSearch, setSellerSearch]       = useState('');
-    const [selectedSeller, setSelectedSeller]   = useState<{ id: string, type: 'partner' | 'contact', name: string } | null>(
+    const [selectedSeller, setSelectedSender]   = useState<{ id: string, companyId?: string, type: 'partner' | 'contact', name: string } | null>(
         initialData ? {
             id: initialData.seller_company_id || initialData.seller_contact_id || '',
+            companyId: initialData.seller_company_id,
             type: initialData.seller_company_id ? 'partner' : 'contact',
             name: (initialData as any).seller_company?.name || (initialData as any).seller_contact?.name || 'Selected'
         } : null
@@ -58,8 +59,8 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
     // --- Calculations ---
     // --- Derived Data ---
     const allPossibleSellers = [
-        ...partners.map(p => ({ id: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
-        ...contacts.map(c => ({ id: c.id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
+        ...partners.map(p => ({ id: p.id, companyId: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
+        ...contacts.map(c => ({ id: c.id, companyId: c.linked_company_id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
     ].filter(s => s.name.toLowerCase().includes(sellerSearch.toLowerCase()));
 
     const subtotal = useMemo(() => {
@@ -81,6 +82,12 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
     // --- Item Handlers ---
     const addItem = () => setItems([...items, { description: '', hsn_code: '', quantity: '1', rate: '', unit: 'PCS' }]);
     const removeItem = (index: number) => setItems(items.filter((_, i) => i !== index));
+    const duplicateItem = (index: number) => {
+        const item = items[index];
+        const next = [...items];
+        next.splice(index + 1, 0, { ...item });
+        setItems(next);
+    };
     const updateItem = (index: number, field: string, value: any) => {
         const newItems = [...items];
         newItems[index] = { ...newItems[index], [field]: value };
@@ -98,7 +105,7 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
         setSaving(true);
         try {
             const billData = {
-                seller_company_id: selectedSeller.type === 'partner' ? selectedSeller.id : undefined,
+                seller_company_id: selectedSeller.companyId || (selectedSeller.type === 'partner' ? selectedSeller.id : undefined),
                 seller_contact_id: selectedSeller.type === 'contact' ? selectedSeller.id : undefined,
                 invoice_number:    vendorInvoiceNo.trim(),
                 items: validItems.map(it => ({
@@ -228,15 +235,40 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                     <div className="bg-gray-50 p-4 rounded-2xl space-y-4">
                         <div className="flex justify-between items-center">
                             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Bill Items</h4>
-                            <button onClick={addItem} className="text-[11px] font-bold text-[#008069] hover:text-[#006a57] bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100 transition-all">+ Add Item</button>
+                            <div className="flex gap-2">
+                                {items.length > 0 && (
+                                    <button 
+                                        onClick={() => duplicateItem(items.length - 1)} 
+                                        className="text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100 transition-all"
+                                    >
+                                        📑 Duplicate Last
+                                    </button>
+                                )}
+                                <button onClick={addItem} className="text-[11px] font-bold text-[#008069] hover:text-[#006a57] bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100 transition-all">+ Add Item</button>
+                            </div>
                         </div>
                         
                         <div className="space-y-4">
                             {items.map((item, idx) => (
                                 <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative group animate-in slide-in-from-right-2 duration-200">
-                                    {items.length > 1 && (
-                                        <button onClick={() => removeItem(idx)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 to-red-600 text-red-500 rounded-full border border-red-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm">✕</button>
-                                    )}
+                                    <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                        <button 
+                                            onClick={() => duplicateItem(idx)} 
+                                            className="w-6 h-6 bg-blue-50 text-blue-600 rounded-full border border-blue-100 flex items-center justify-center shadow-sm hover:bg-blue-100"
+                                            title="Duplicate Row"
+                                        >
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                                            </svg>
+                                        </button>
+                                        {items.length > 1 && (
+                                            <button 
+                                                onClick={() => removeItem(idx)} 
+                                                className="w-6 h-6 bg-red-50 text-red-500 rounded-full border border-red-100 flex items-center justify-center shadow-sm hover:bg-red-100"
+                                                title="Remove Row"
+                                            >✕</button>
+                                        )}
+                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                                         <div className="md:col-span-5">
                                             <label className={labelCls}>Description</label>

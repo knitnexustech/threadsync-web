@@ -55,6 +55,9 @@ const IC_SELECT = `
     sender_company:companies!sender_company_id(
         id, name, gst_number, kramiz_id, address, state, pincode
     ),
+    sender_contact:contacts!sender_contact_id(
+        id, name, gst_number, address, state, pincode, phone
+    ),
     receiver_company:companies!receiver_company_id(
         id, name, gst_number, kramiz_id
     )

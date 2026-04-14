@@ -34,6 +34,14 @@ const generateDCNumber = async (companyId: string): Promise<string> => {
 // OUTWARD DELIVERY CHALLAN
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const DC_SELECT = `
+    *,
+    sender_company:companies!sender_company_id(id, name, gst_number, address, state, pincode, kramiz_id),
+    receiver_company:companies!receiver_company_id(id, name, gst_number, address, state, pincode, kramiz_id),
+    receiver_contact:contacts!receiver_contact_id(id, name, gst_number, address, state, pincode, phone),
+    parent_order:orders!order_number(id, order_number, style_number)
+`;
+
 export const createDeliveryChallan = async (
     currentUser: User,
     params: {
@@ -62,13 +70,10 @@ export const createDeliveryChallan = async (
         .insert({
             dc_number,
             sender_company_id: currentUser.company_id,
+            status: 'COMPLETED',
             ...params,
         })
-        .select(`
-            *,
-            sender_company:companies!sender_company_id(id, name, gst_number, address, state, pincode, kramiz_id),
-            receiver_company:companies!receiver_company_id(id, name, gst_number, address, state, pincode, kramiz_id)
-        `)
+        .select(DC_SELECT)
         .single();
 
     if (error) throw new Error(error.message);
@@ -78,11 +83,7 @@ export const createDeliveryChallan = async (
 export const getDCsForCompany = async (currentUser: User): Promise<DeliveryChallan[]> => {
     const { data, error } = await supabase
         .from('delivery_challans')
-        .select(`
-            *,
-            sender_company:companies!sender_company_id(id, name, gst_number, kramiz_id),
-            receiver_company:companies!receiver_company_id(id, name, gst_number, kramiz_id)
-        `)
+        .select(DC_SELECT)
         .or(`sender_company_id.eq.${currentUser.company_id},receiver_company_id.eq.${currentUser.company_id}`)
         .order('created_at', { ascending: false });
 
@@ -93,11 +94,7 @@ export const getDCsForCompany = async (currentUser: User): Promise<DeliveryChall
 export const getDCsForChannel = async (channelId: string): Promise<DeliveryChallan[]> => {
     const { data, error } = await supabase
         .from('delivery_challans')
-        .select(`
-            *,
-            sender_company:companies!sender_company_id(id, name, gst_number, kramiz_id),
-            receiver_company:companies!receiver_company_id(id, name, gst_number, kramiz_id)
-        `)
+        .select(DC_SELECT)
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false });
 
@@ -108,11 +105,7 @@ export const getDCsForChannel = async (channelId: string): Promise<DeliveryChall
 export const getDCById = async (dcId: string): Promise<DeliveryChallan | null> => {
     const { data, error } = await supabase
         .from('delivery_challans')
-        .select(`
-            *,
-            sender_company:companies!sender_company_id(id, name, gst_number, address, state, pincode, kramiz_id),
-            receiver_company:companies!receiver_company_id(id, name, gst_number, address, state, pincode, kramiz_id)
-        `)
+        .select(DC_SELECT)
         .eq('id', dcId)
         .single();
 
@@ -120,21 +113,22 @@ export const getDCById = async (dcId: string): Promise<DeliveryChallan | null> =
     return data as DeliveryChallan;
 };
 
-export const markDCReceived = async (currentUser: User, dcId: string): Promise<void> => {
+export const markDCBilled = async (currentUser: User, dcId: string): Promise<void> => {
     const { error } = await supabase
         .from('delivery_challans')
-        .update({ status: 'RECEIVED' })
+        .update({ status: 'BILLED' })
         .eq('id', dcId)
-        .eq('receiver_company_id', currentUser.company_id); // only receiver can mark
+        .eq('sender_company_id', currentUser.company_id); // only sender can bill it
 
     if (error) throw new Error(error.message);
 };
 
-export const markDCDisputed = async (currentUser: User, dcId: string): Promise<void> => {
+export const markDCCancelled = async (currentUser: User, dcId: string): Promise<void> => {
     const { error } = await supabase
         .from('delivery_challans')
-        .update({ status: 'DISPUTED' })
-        .eq('id', dcId);
+        .update({ status: 'CANCELLED' })
+        .eq('id', dcId)
+        .eq('sender_company_id', currentUser.company_id);
 
     if (error) throw new Error(error.message);
 };
@@ -160,11 +154,7 @@ export const updateDeliveryChallan = async (
         .update(updates)
         .eq('id', dcId)
         .eq('sender_company_id', currentUser.company_id)
-        .select(`
-            *,
-            sender_company:companies!sender_company_id(id, name, gst_number, address, state, pincode, kramiz_id),
-            receiver_company:companies!receiver_company_id(id, name, gst_number, address, state, pincode, kramiz_id)
-        `)
+        .select(DC_SELECT)
         .single();
 
     if (error) throw new Error(error.message);
@@ -181,44 +171,7 @@ export const deleteDeliveryChallan = async (currentUser: User, dcId: string): Pr
     if (error) throw new Error(error.message);
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// DRIVER PROFILES
-// ═══════════════════════════════════════════════════════════════════════════════
 
-export const getDrivers = async (currentUser: User): Promise<Driver[]> => {
-    const { data, error } = await supabase
-        .from('drivers')
-        .select('*')
-        .eq('company_id', currentUser.company_id)
-        .order('created_at', { ascending: false });
-
-    if (error) throw new Error(error.message);
-    return (data || []) as Driver[];
-};
-
-export const saveDriver = async (
-    currentUser: User,
-    driver: { name: string; phone?: string; photo_url?: string }
-): Promise<Driver> => {
-    const { data, error } = await supabase
-        .from('drivers')
-        .insert({ company_id: currentUser.company_id, ...driver })
-        .select()
-        .single();
-
-    if (error) throw new Error(error.message);
-    return data as Driver;
-};
-
-export const deleteDriver = async (currentUser: User, driverId: string): Promise<void> => {
-    const { error } = await supabase
-        .from('drivers')
-        .delete()
-        .eq('id', driverId)
-        .eq('company_id', currentUser.company_id);
-
-    if (error) throw new Error(error.message);
-};
 
 /**
  * Upload a driver photo to Supabase Storage.

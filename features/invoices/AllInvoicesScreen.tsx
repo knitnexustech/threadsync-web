@@ -5,11 +5,15 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Invoice, GSTType, GSTRate, hasPermission } from '../../types';
+import { User, Invoice, GSTType, GSTRate, hasPermission, Company } from '../../types';
 import { api } from '../../supabaseAPI';
+import { resolveTo, resolveFrom } from '../../services/partnerUtils';
 import { SubScreenHeader, EmptyState, StatusBadge, fmtDate, fmtAmount } from '../orders/shared';
 import { QuickSalesInvoiceForm } from './components/QuickSalesInvoiceForm';
 import { QuickPurchaseInvoiceForm } from './components/QuickPurchaseInvoiceForm';
+import { generateDocumentPDF } from '../../services/documentEngine';
+import { useQuery as useCompanyQuery } from '@tanstack/react-query';
+import { DocumentShareModal } from '../../components/DocumentShareModal';
 
 interface AllInvoicesScreenProps {
     currentUser: User;
@@ -20,6 +24,7 @@ interface AllInvoicesScreenProps {
 export const AllInvoicesScreen: React.FC<AllInvoicesScreenProps> = ({ currentUser, onBack, type = 'SALES' }) => {
     const qc = useQueryClient();
     const [editInv, setEditInv] = useState<Invoice | null>(null);
+    const [sharingDoc, setSharingDoc] = useState<{ data: Invoice, pdf: string } | null>(null);
 
     const isSales = type === 'SALES';
 
@@ -28,6 +33,19 @@ export const AllInvoicesScreen: React.FC<AllInvoicesScreenProps> = ({ currentUse
         queryKey: [isSales ? 'sales_invoices' : 'purchase_invoices', currentUser.company_id],
         queryFn: () => isSales ? api.getSalesInvoices(currentUser) : api.getPurchaseInvoices(currentUser),
     });
+
+    const { data: company } = useCompanyQuery<Company>({
+        queryKey: ['company', currentUser.company_id],
+        queryFn: () => api.getCompany(currentUser.company_id),
+    });
+
+    const handleDownload = async (inv: Invoice) => {
+        if (!company) return;
+        try {
+            const pdfBase64 = await generateDocumentPDF('SALES_INVOICE', inv, company, true);
+            setSharingDoc({ data: inv, pdf: pdfBase64 });
+        } catch (err: any) { alert(err.message); }
+    };
 
     const handleDelete = async (id: string) => {
         if (!confirm(`Are you sure you want to delete this ${isSales ? 'Sales' : 'Purchase'} Invoice?`)) return;
@@ -64,14 +82,23 @@ export const AllInvoicesScreen: React.FC<AllInvoicesScreenProps> = ({ currentUse
                                     <p className="text-[12px] text-gray-500 font-medium">
                                         <span className="text-gray-400">{isSales ? 'Buyer: ' : 'Seller: '}</span>
                                         {isSales 
-                                            ? inv.buyer_company?.name || inv.buyer_contact?.name || 'Manual Contact'
-                                            : inv.seller_company?.name || inv.seller_contact?.name || 'Manual Contact'
+                                            ? resolveTo(inv)?.name || '—'
+                                            : resolveFrom(inv)?.name || '—'
                                         }
                                     </p>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     <StatusBadge status={inv.status} />
                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {isSales && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleDownload(inv); }}
+                                                className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                                title="Download PDF"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                            </button>
+                                        )}
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); setEditInv(inv); }}
                                             className="p-1.5 text-gray-400 hover:text-[#008069] hover:bg-green-50 rounded-lg transition-all"
@@ -114,6 +141,17 @@ export const AllInvoicesScreen: React.FC<AllInvoicesScreenProps> = ({ currentUse
                     currentUser={currentUser} 
                     initialData={editInv} 
                     onClose={() => setEditInv(null)} 
+                />
+            )}
+
+            {sharingDoc && company && (
+                <DocumentShareModal 
+                    currentUser={currentUser}
+                    company={company}
+                    docType="SALES_INVOICE"
+                    docData={sharingDoc.data}
+                    pdfBase64={sharingDoc.pdf}
+                    onClose={() => setSharingDoc(null)}
                 />
             )}
         </div>

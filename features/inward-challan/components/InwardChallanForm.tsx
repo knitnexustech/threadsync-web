@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../supabaseAPI';
-import { User, DCItem, Company, Order, Contact } from '../../../types';
+import { User, DCItem, Company, Order, Contact, DeliveryChallan, InwardChallan } from '../../../types';
 import { ItemsTable } from '../../delivery-challan/components/ItemsTable';
 
 interface InwardChallanFormProps {
@@ -32,9 +32,10 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
 }) => {
     // ── Form state ─────────────────────────────────────────────────────────────
     const [senderSearch, setSenderSearch]       = useState('');
-    const [selectedSender, setSelectedSender]   = useState<{ id: string, type: 'partner' | 'contact', name: string } | null>(
+    const [selectedSender, setSelectedSender]   = useState<{ id: string, companyId?: string, type: 'partner' | 'contact', name: string } | null>(
         initialData ? {
             id: initialData.sender_company_id || initialData.sender_contact_id || '',
+            companyId: initialData.sender_company_id,
             type: initialData.sender_company_id ? 'partner' : 'contact',
             name: (initialData as any).sender_company?.name || (initialData as any).sender_contact?.name || 'Selected'
         } : null
@@ -60,15 +61,42 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
     });
 
     // --- Derived Data ---
-    const allPossibleSenders = [
-        ...partners.map(p => ({ id: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
-        ...contacts.map(c => ({ id: c.id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
-    ].filter(s => s.name.toLowerCase().includes(senderSearch.toLowerCase()));
-
     const { data: orders = [] } = useQuery<Order[]>({
         queryKey: ['orders', currentUser.id],
         queryFn:  () => api.getOrders(currentUser),
     });
+
+    // --- Auto-populate if linked to a DC ---
+    React.useEffect(() => {
+        if (linkedDCId && !initialData) {
+            api.getDeliveryChallanById(linkedDCId).then(dc => {
+                if (dc) {
+                    setOrderId(dc.order_number || '');
+                    setRefOrderNumber(dc.dc_number);
+                    setItems([...dc.items]);
+                    
+                    // Prioritize contact if it exists, otherwise use company
+                    if (dc.receiver_contact) {
+                         // Wait, this is coming TO us. So the SENDER of the DC is the SENDER of our IC.
+                         // But if we are the receiver of the DC, we already have our details.
+                         // We need the details of dc.sender_company
+                    }
+
+                    setSelectedSender({
+                        id: dc.sender_company_id, // we don't have a contact ID for the sender often in DCs, so use company
+                        companyId: dc.sender_company_id,
+                        type: 'partner',
+                        name: dc.sender_company?.name || 'Sender'
+                    });
+                }
+            });
+        }
+    }, [linkedDCId, initialData]);
+
+    const allPossibleSenders = [
+        ...partners.map(p => ({ id: p.id, companyId: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
+        ...contacts.map(c => ({ id: c.id, companyId: c.linked_company_id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
+    ].filter(s => s.name.toLowerCase().includes(senderSearch.toLowerCase()));
 
     // ── Submit ─────────────────────────────────────────────────────────────────
     const handleSubmit = async () => {
@@ -81,7 +109,7 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
             const icData = {
                 channel_id:        channelId,
                 linked_dc_id:      linkedDCId,
-                sender_company_id: selectedSender.type === 'partner' ? selectedSender.id : undefined,
+                sender_company_id: selectedSender.companyId || (selectedSender.type === 'partner' ? selectedSender.id : undefined),
                 sender_contact_id: selectedSender.type === 'contact' ? selectedSender.id : undefined,
                 order_number:      orderId || undefined,
                 ref_order_number:  refOrderNumber || undefined,

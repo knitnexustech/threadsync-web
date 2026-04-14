@@ -469,6 +469,45 @@ export const shareContent = async (
     }
 };
 
+/**
+ * Share a file (like a PDF) using the native share sheet.
+ * data should be a base64 encoded string or a URL.
+ */
+export const shareFile = async (
+    fileName: string,
+    base64Data: string,
+    title: string = 'Share Document'
+): Promise<void> => {
+    if (!isNative) {
+        // Fallback: Trigger download on web
+        const a = document.createElement('a');
+        a.href = `data:application/pdf;base64,${base64Data}`;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+    }
+
+    try {
+        // Save to temporary directory first
+        const result = await Filesystem.writeFile({
+            path: `Download/${fileName}`,
+            data: base64Data,
+            directory: Directory.Cache,
+        });
+
+        await Share.share({
+            title,
+            files: [result.uri],
+            dialogTitle: title,
+        });
+    } catch (error) {
+        console.error('[Capacitor] Share file error:', error);
+        alert('Failed to share file');
+    }
+};
+
 // ============================================
 // DEVICE INFO
 // ============================================

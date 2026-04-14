@@ -8,10 +8,14 @@
 
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { User, DeliveryChallan, hasPermission } from '../../types';
+import { User, DeliveryChallan, hasPermission, Company } from '../../types';
 import { api } from '../../supabaseAPI';
+import { resolveTo, resolveFrom } from '../../services/partnerUtils';
 import { DCForm } from './components/DCForm';
 import { SubScreenHeader, EmptyState, StatusBadge } from '../orders/shared';
+import { generateDocumentPDF } from '../../services/documentEngine';
+import { useQuery as useCompanyQuery } from '@tanstack/react-query';
+import { DocumentShareModal } from '../../components/DocumentShareModal';
 
 
 interface AllDCsScreenProps {
@@ -26,11 +30,25 @@ export const AllDCsScreen: React.FC<AllDCsScreenProps> = ({ currentUser, onBack 
     const qc = useQueryClient();
     const [showForm, setShowForm] = useState(false);
     const [editDC, setEditDC] = useState<DeliveryChallan | null>(null);
+    const [sharingDoc, setSharingDoc] = useState<{ data: DeliveryChallan, pdf: string } | null>(null);
 
     const { data: dcs = [], isLoading } = useQuery<DeliveryChallan[]>({
         queryKey: ['dcs', currentUser.company_id],
         queryFn: () => api.getDCsForCompany(currentUser),
     });
+
+    const { data: company } = useCompanyQuery<Company>({
+        queryKey: ['company', currentUser.company_id],
+        queryFn: () => api.getCompany(currentUser.company_id),
+    });
+
+    const handleDownload = async (dc: DeliveryChallan) => {
+        if (!company) return;
+        try {
+            const pdfBase64 = await generateDocumentPDF('DC', dc, company, true); // Added returnBase64 flag
+            setSharingDoc({ data: dc, pdf: pdfBase64 });
+        } catch (err: any) { alert(err.message); }
+    };
 
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this DC?')) return;
@@ -59,9 +77,9 @@ export const AllDCsScreen: React.FC<AllDCsScreenProps> = ({ currentUser, onBack 
                         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
                             {dcs.map(dc => {
                                 const isSender = dc.sender_company_id === currentUser.company_id;
-                                const partnerName = isSender 
-                                    ? (dc.receiver_company?.name || dc.receiver_contact_id ? "Manual Contact" : "—")
-                                    : (dc.sender_company?.name || "—");
+                                const to   = resolveTo(dc);
+                                const from = resolveFrom(dc);
+                                const partnerName = isSender ? (to?.name || "—") : (from?.name || "—");
                                 
                                 return (
                                     <div key={dc.id} className="group flex items-center gap-3 px-4 py-4 hover:bg-gray-50/50 transition-colors">
@@ -80,6 +98,15 @@ export const AllDCsScreen: React.FC<AllDCsScreenProps> = ({ currentUser, onBack 
                                         </div>
                                         
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {isSender && (
+                                                <button 
+                                                    onClick={() => handleDownload(dc)}
+                                                    className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                                    title="Download PDF"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                </button>
+                                            )}
                                             {isSender && (
                                                 <button 
                                                     onClick={() => { setEditDC(dc); setShowForm(true); }}
@@ -118,6 +145,17 @@ export const AllDCsScreen: React.FC<AllDCsScreenProps> = ({ currentUser, onBack 
                         setEditDC(null);
                     }}
                     onClose={() => { setShowForm(false); setEditDC(null); }}
+                />
+            )}
+
+            {sharingDoc && company && (
+                <DocumentShareModal 
+                    currentUser={currentUser}
+                    company={company}
+                    docType="DC"
+                    docData={sharingDoc.data}
+                    pdfBase64={sharingDoc.pdf}
+                    onClose={() => setSharingDoc(null)}
                 />
             )}
         </div>
