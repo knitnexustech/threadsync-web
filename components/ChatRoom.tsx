@@ -5,7 +5,9 @@ import { SpecDrawer } from './SpecDrawer';
 import { Modal } from './Modal';
 import { compressImage } from '../imageUtils';
 import { useChat } from '../hooks/useChat';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isNative, shareFile, shareContent } from '../capacitorUtils';
+import { KramizSharePopup } from './KramizSharePopup';
 
 interface ChatRoomProps {
     currentUser: User;
@@ -27,6 +29,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
     const [showAttachMenu, setShowAttachMenu] = useState(false);
     const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+    const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+    const [openUpwards, setOpenUpwards] = useState(false);
+    const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+    const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedTargetChannelIds, setSelectedTargetChannelIds] = useState<Set<string>>(new Set());
 
     // Voice Note States
     const [isRecording, setIsRecording] = useState(false);
@@ -50,8 +58,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
 
     // ROLE-BASED PERMISSIONS
     const canAddMembers = hasPermission(currentUser.role, 'ADD_CHANNEL_MEMBER');
-    const canEditGroup = hasPermission(currentUser.role, 'EDIT_CHANNEL');
     const canDeleteGroup = hasPermission(currentUser.role, 'DELETE_CHANNEL');
+    const canEditGroup = hasPermission(currentUser.role, 'EDIT_CHANNEL');
     const canRemoveMembers = hasPermission(currentUser.role, 'REMOVE_CHANNEL_MEMBER');
 
     const [currentStatus, setCurrentStatus] = useState(channel.status);
@@ -100,9 +108,117 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
         const newStat = e.target.value;
         setCurrentStatus(newStat);
         updateStatus(newStat);
-        sendMessage(`Changed status to ${newStat}`, true);
     };
 
+    const { data: allChannels = [] } = useQuery({
+        queryKey: ['channels', currentUser.id],
+        queryFn: () => api.getAllChannels(currentUser),
+        enabled: !!forwardingMessage
+    });
+
+    const forwardMessageMutation = useMutation({
+        mutationFn: async ({ targetChannelIds, message }: { targetChannelIds: string[], message: Message }) => {
+            return Promise.all(targetChannelIds.map(tid => api.sendMessage(currentUser, tid, message.content)));
+        },
+        onSuccess: () => {
+            setForwardingMessage(null);
+            setSelectedTargetChannelIds(new Set());
+            alert('Forwarded successfully!');
+        },
+        onError: (err: any) => alert('Forward failed: ' + err.message)
+    });
+
+    const handleDeleteChannel = async () => {
+        if (!window.confirm("ARE YOU SURE? This will permanently delete the entire group, all messages, all specs, and all attached files. This cannot be undone.")) return;
+        if (!window.confirm("FINAL CONFIRMATION: Delete everything in this group?")) return;
+
+        try {
+            await api.deleteChannel(currentUser, channel.id);
+            queryClient.invalidateQueries({ queryKey: ['channels'] });
+            onBack();
+        } catch (err: any) {
+            alert("Failed to delete: " + err.message);
+        }
+    };
+
+    const handleShareNative = async (msg: Message) => {
+        setOpenDropdownId(null);
+        try {
+            const isImage = msg.content?.startsWith('[IMAGE]');
+            const isFile = msg.content?.startsWith('[FILE]');
+            
+            if (isImage || isFile) {
+                const parts = msg.content.replace(/\[IMAGE\]|\[FILE\]/, '').split('|');
+                const url = parts[0].trim();
+                const fileName = parts[1]?.trim() || (isImage ? 'photo.jpg' : 'document.pdf');
+                
+                // 1. Fetch the actual file first
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const file = new File([blob], fileName, { type: blob.type });
+
+                if (isNative) {
+                    // Native Capacitor Path
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                        const base64data = (reader.result as string).split(',')[1];
+                        await shareFile(fileName, base64data, isImage ? 'Share Photo' : 'Share Document');
+                    };
+                    reader.readAsDataURL(blob);
+                } else if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    // Modern Web Path (Mobile Browsers/PWA)
+                    await navigator.share({
+                        files: [file],
+                        title: isImage ? 'Photo from Kramiz' : 'Document from Kramiz',
+                    });
+                } else {
+                    // Fallback: Share URL (Database link exposed here, but this is the last resort)
+                    await navigator.share({
+                        title: isImage ? 'Photo from Kramiz' : 'Document from Kramiz',
+                        text: `Check out this ${isImage ? 'photo' : 'file'} from Kramiz`,
+                        url: url
+                    });
+                }
+            } else {
+                // Text message sharing
+                if (isNative) {
+                    await shareContent('Share Message', msg.content);
+                } else {
+                    await navigator.share({
+                        title: 'Message from Kramiz',
+                        text: msg.content
+                    });
+                }
+            }
+        } catch (e) { 
+            console.error('Share error', e); 
+            // Fallback to clipboard if sharing fails or is unsupported
+            navigator.clipboard.writeText(msg.content);
+            alert('Link copied to clipboard');
+        }
+    };
+
+    const handlePinToSpecs = async (msg: Message) => {
+        setOpenDropdownId(null);
+        try {
+            const isFile = msg.content.startsWith('[FILE]');
+            const isImage = msg.content.startsWith('[IMAGE]');
+            
+            if (isFile || isImage) {
+                const parts = msg.content.replace(/\[FILE\]|\[IMAGE\]/, '').split('|');
+                const url = parts[0].trim();
+                const fileName = parts[1]?.trim() || (isImage ? 'image.jpg' : 'file.dat');
+                await api.addFileToChannel(currentUser, channel.id, fileName, url);
+                alert('File added to Specs!');
+            } else {
+                await api.addSpecToChannel(currentUser, channel.id, msg.content);
+                alert('Pinned to Specs!');
+            }
+            
+            // Invalidate channels query to refresh SpecDrawer
+            queryClient.invalidateQueries({ queryKey: ['channels', currentUser.id] });
+        } catch (e) { alert('Failed to pin to specs'); }
+    };
     const [isUploading, setIsUploading] = useState(false);
 
     const startRecording = async () => {
@@ -200,29 +316,171 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                     <div className="flex items-center flex-1 min-w-0">
                         <button onClick={onBack} className="mr-3 md:hidden"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-12">
-                                <h2 className="font-bold text-lg truncate">{channel.name}</h2>
-                                <select value={currentStatus} onChange={handleStatusChange} className="text-[12px] px-2 py-0.5 rounded-full border-none focus:ring-0 cursor-pointer font-bold bg-white/20 text-white"><option value="PENDING">PENDING</option><option value="IN_PROGRESS">ACTIVE</option><option value="COMPLETED">DONE</option></select>
+                            <div className="flex items-center gap-2">
+                                <h2 className="font-bold text-lg truncate text-white">{channel.name}</h2>
+                                <select 
+                                    value={currentStatus} 
+                                    onChange={handleStatusChange} 
+                                    className={`text-[10px] px-2 py-1 rounded-full border-none focus:ring-0 cursor-pointer font-black ml-3 transition-all uppercase tracking-widest shadow-sm
+                                        ${currentStatus === 'PENDING' ? 'bg-[#FFD700] text-[#4A3C00]' : 
+                                          currentStatus === 'IN_PROGRESS' ? 'bg-[#25D366] text-white' : 
+                                          'bg-[#94A3B8] text-white'}`}
+                                >
+                                    <option value="PENDING" className="text-gray-900 bg-white">PENDING</option>
+                                    <option value="IN_PROGRESS" className="text-gray-900 bg-white">ACTIVE</option>
+                                    <option value="COMPLETED" className="text-gray-900 bg-white">COMPLETED</option>
+                                </select>
                             </div>
                             <p className="text-xs text-green-100 truncate">{order.order_number} • {order.style_number}</p>
                         </div>
                     </div>
-                    <button onClick={() => setShowGroupInfo(true)} className="p-2 hover:bg-white/10 rounded-full"><svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
+                    <div className="flex items-center gap-1">
+                        <button onClick={() => setShowGroupInfo(true)} className="p-2 hover:bg-white/10 rounded-full text-white"><svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
+                    </div>
                 </div>
 
                 <SpecDrawer channel={channel} currentUser={currentUser} />
+
+                {/* Selection Action Bar */}
+                {selectionMode && (
+                    <div className="absolute top-0 left-0 right-0 h-[60px] bg-white border-b border-gray-200 z-50 flex items-center justify-between px-4 animate-in slide-in-from-top duration-300">
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => { setSelectionMode(false); setSelectedMessageIds(new Set()); }} className="p-2 text-gray-500 hover:text-gray-700">✕</button>
+                            <span className="font-bold text-gray-800">{selectedMessageIds.size} Selected</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => {
+                                    const combinedContent = Array.from(selectedMessageIds)
+                                        .map(id => messages.find(m => m.id === id))
+                                        .filter(Boolean)
+                                        .map(m => m!.content)
+                                        .join('\n\n');
+                                    setForwardingMessage({ 
+                                        id: 'combined', 
+                                        channel_id: channel.id, 
+                                        user_id: currentUser.id, 
+                                        content: combinedContent, 
+                                        timestamp: new Date().toISOString() 
+                                    });
+                                    setSelectionMode(false); 
+                                    setSelectedMessageIds(new Set());
+                                }}
+                                disabled={selectedMessageIds.size === 0}
+                                className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#008069] disabled:opacity-30"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="15 17 20 12 15 7" />
+                                    <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                                </svg>
+                                <span className="text-[10px] font-black uppercase">Forward</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 whatsapp-bg">
                     {messages.map(msg => {
                         const isMe = msg.user_id === currentUser.id;
                         const isDeleted = msg.content?.startsWith('[DELETED]');
+                        const isSelected = selectedMessageIds.has(msg.id);
+
                         if (msg.is_system_update) return <div key={msg.id} className="flex justify-center my-3"><span className="bg-[#d5f4e6] text-gray-700 text-xs px-4 py-1.5 rounded-full">{msg.content}</span></div>;
+                        
                         return (
-                            <div key={msg.id} id={`msg-${msg.id}`} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} group max-w-full`}>
-                                {isMe && !isDeleted && <button onClick={() => setDeletingMessageId(msg.id)} className="opacity-0 group-hover:opacity-100 p-2 text-gray-300 hover:text-red-500">✕</button>}
-                                <div className={`max-w-[75%] rounded-xl px-3 py-1.5 shadow-sm text-sm relative ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none'}`}>
+                            <div key={msg.id} id={`msg-${msg.id}`} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} group max-w-full relative`}>
+                                {/* Multi-select Checkbox */}
+                                {selectionMode && !isDeleted && (
+                                    <div className={`mr-2 mb-2 transition-all ${isMe ? 'order-first' : ''}`}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isSelected}
+                                            onChange={() => {
+                                                const next = new Set(selectedMessageIds);
+                                                if (next.has(msg.id)) next.delete(msg.id); else next.add(msg.id);
+                                                setSelectedMessageIds(next);
+                                            }}
+                                            className="w-5 h-5 rounded-full border-gray-300 text-[#008069] focus:ring-[#008069]"
+                                        />
+                                    </div>
+                                )}
+
+                                <div 
+                                    onContextMenu={(e) => {
+                                        if (selectionMode) return;
+                                        e.preventDefault();
+                                        setSelectionMode(true);
+                                        setSelectedMessageIds(new Set([msg.id]));
+                                    }}
+                                    className={`max-w-[85%] rounded-xl px-3 py-1.5 shadow-sm text-sm relative transition-all ${isSelected ? 'ring-2 ring-[#008069] scale-[0.98]' : ''} ${isMe ? 'bg-[#d9fdd3] rounded-tr-none' : 'bg-white rounded-tl-none'}`}
+                                >
                                     {!isMe && <div className="mb-1 text-[14px] font-bold text-[#008069]">{msg.user?.name}</div>}
-                                    <div className="pr-16 pb-1">{isDeleted ? <span className="text-gray-400 italic">Deleted</span> : renderMessageContent(msg.content)}</div>
+                                    
+                                    {!isDeleted && !selectionMode && (
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (openDropdownId === msg.id) {
+                                                    setOpenDropdownId(null);
+                                                } else {
+                                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                                    setOpenUpwards(spaceBelow < 200);
+                                                    setOpenDropdownId(msg.id);
+                                                }
+                                            }}
+                                            className={`absolute top-1 right-1 p-1 rounded-full transition-colors z-10 bg-white/70 backdrop-blur-sm shadow-sm md:opacity-0 group-hover:opacity-100 ${openDropdownId === msg.id ? 'opacity-100 text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                                        </button>
+                                    )}
+
+                                    {openDropdownId === msg.id && !isDeleted && !selectionMode && (
+                                        <div className={`absolute ${openUpwards ? 'bottom-8' : 'top-8'} right-0 bg-white shadow-2xl rounded-2xl py-1.5 w-52 z-20 border border-gray-100 animate-in fade-in zoom-in-95 duration-100`}>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(msg.content.replace(/\[IMAGE\]|\[FILE\]|\[AUDIO\]/, '').split('|')[0].trim());
+                                                    setOpenDropdownId(null);
+                                                }} 
+                                                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                                            >
+                                                <span className="text-base">📋</span> Copy Text
+                                            </button>
+                                            <button onClick={() => { setSelectionMode(true); setSelectedMessageIds(new Set([msg.id])); setOpenDropdownId(null); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <span className="text-base">✅</span> Select Multiple
+                                            </button>
+                                            <button onClick={() => handlePinToSpecs(msg)} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <span className="text-base">📌</span> Pin to Specs
+                                            </button>
+                                            <button onClick={() => { setOpenDropdownId(null); setForwardingMessage(msg); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="15 17 20 12 15 7" />
+                                                    <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                                                </svg>
+                                                Forward
+                                            </button>
+                                            <button onClick={() => handleShareNative(msg)} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <circle cx="18" cy="5" r="3" />
+                                                    <circle cx="6" cy="12" r="3" />
+                                                    <circle cx="18" cy="19" r="3" />
+                                                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                                                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                                                </svg>
+                                                Share
+                                            </button>
+                                            {isMe && (
+                                                <button 
+                                                    onClick={() => { setOpenDropdownId(null); setDeletingMessageId(msg.id); }} 
+                                                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 border-t border-gray-50 mt-1 transition-colors"
+                                                >
+                                                    <span className="text-base">🗑️</span> Delete
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="pr-10 pb-1">{isDeleted ? <span className="text-gray-400 italic">Deleted</span> : renderMessageContent(msg.content)}</div>
                                     <div className="text-[9px] text-gray-400 absolute bottom-1 right-2">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                 </div>
                             </div>
@@ -231,7 +489,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                     <div ref={messagesEndRef} />
                 </div>
 
-                <div className="bg-[#f0f2f5] px-4 py-3 flex items-center gap-2 relative safe-pb border-t border-gray-200">
+                <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative safe-pb-deep border-t border-gray-200">
                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
                     <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-[#008069] hover:bg-white rounded-full transition-all">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -245,7 +503,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                         </div>
                     )}
                     
-                    <div className="flex-1 flex items-end gap-2 bg-white rounded-2xl px-3 py-1 shadow-sm border border-gray-100 minimal-scrollbar overflow-hidden">
+                    <div className="flex-1 flex items-end gap-2 bg-white rounded-[14px] px-4 py-1 shadow-sm border border-gray-100 overflow-hidden">
                         <textarea
                             ref={textareaRef}
                             value={newMessage}
@@ -257,8 +515,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                                 }
                             }}
                             placeholder="Type a message..."
-                            className="flex-1 py-2 px-1 bg-transparent border-none focus:ring-0 text-[15px] resize-none minimal-scrollbar"
-                            style={{ minHeight: '44px', maxHeight: '150px' }}
+                            className="flex-1 py-1.5 bg-transparent border-none focus:ring-0 focus:outline-none text-[15px] resize-none minimal-scrollbar"
+                            style={{ minHeight: '24px', maxHeight: '150px', lineHeight: '24px' }}
+                            rows={1}
                         />
                     </div>
 
@@ -270,14 +529,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
 
                     <button 
                         onClick={isRecording ? () => stopRecording(false) : (newMessage.trim() ? handleSend : startRecording)} 
-                        className={`w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-2xl text-white shadow-lg transition-all active:scale-95 ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-[#008069]'}`}
+                        className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full text-white shadow-sm transition-all active:scale-95 ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-[#008069]'}`}
                     >
                         {isRecording ? (
-                            <span className="font-bold text-xs">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span>
+                            <span className="font-bold text-[10px]">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span>
                         ) : newMessage.trim() ? (
-                            <svg className="w-6 h-6 rotate-90" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                            <svg className="w-5 h-5 rotate-90" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
                         ) : (
-                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" /></svg>
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" /></svg>
                         )}
                     </button>
                 </div>
@@ -292,7 +551,22 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                     </div>
                     <div className="p-6">
                         <div className="flex justify-between items-center mb-4"><h4 className="text-xs font-bold text-gray-400 uppercase">Participants</h4>{canAddMembers && <button onClick={handleAddMember} className="text-xs text-[#008069] font-bold">+ Add</button>}</div>
-                        <div className="space-y-3">{members.map(m => (<div key={m.id} className="flex items-center gap-3"><div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center font-bold">{m.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{m.name}</p></div></div>))}</div>
+                        <div className="space-y-3 mb-8">{members.map(m => (<div key={m.id} className="flex items-center gap-3"><div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center font-bold">{m.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{m.name}</p></div></div>))}</div>
+                        
+                        {canDeleteGroup && (
+                            <div className="pt-6 border-t border-gray-100">
+                                <button 
+                                    onClick={handleDeleteChannel}
+                                    className="w-full flex items-center justify-center gap-2 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-all font-bold border border-red-100"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete Group
+                                </button>
+                                <p className="text-[10px] text-gray-400 text-center mt-2">All files, specs, and messages will be permanently removed.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -337,6 +611,22 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                     Add Selected Members
                 </button>
             </Modal>
+            {/* Forwarding Modal (using unified popup) */}
+            {forwardingMessage && (
+                <KramizSharePopup
+                    currentUser={currentUser}
+                    content={{
+                        type: forwardingMessage.content.startsWith('[FILE]') || forwardingMessage.content.startsWith('[IMAGE]') ? 'file' : 'text',
+                        text: forwardingMessage.content,
+                        fileUrl: forwardingMessage.content.split('|')[0].replace(/\[IMAGE\]|\[FILE\]/, '').trim(),
+                        fileName: forwardingMessage.content.split('|')[1]?.trim() || 'Forwarded File'
+                    }}
+                    onClose={() => setForwardingMessage(null)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ['channels'] });
+                    }}
+                />
+            )}
         </div>
     );
 };

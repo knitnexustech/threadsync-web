@@ -57,6 +57,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     const isDashboard = location.pathname.startsWith('/dashboard');
     const isChats = location.pathname.startsWith('/group') || location.pathname === '/chats' || location.pathname === '/';
     const isSettingsTab = location.pathname.startsWith('/settings');
+    const isInsideChat = location.pathname.includes('/group/');
 
     const onSelectChannel = (c: Channel, p: Order) => {
         const slug = generateSlug(c, p, userCompany || undefined);
@@ -125,16 +126,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
             <div className="flex-1 flex flex-col h-full relative">
                 {/* Mobile Bottom Navigation */}
-                <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 z-[100] px-2 safe-pb">
-                    <div className="flex h-full items-center">
-                        <NavItem icon={icons.chats}     label="Chats"     isActive={isChats}     onClick={() => navigate('/chats')} />
-                        <NavItem icon={icons.dashboard} label="Dashboard" isActive={isDashboard} onClick={() => navigate('/dashboard')} />
-                        <NavItem icon={icons.settings}  label="Settings"  isActive={isSettingsTab || isSettings}  onClick={() => navigate('/settings')} />
+                {!isInsideChat && (
+                    <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 z-[100] px-2 safe-pb">
+                        <div className="flex h-full items-center">
+                            <NavItem icon={icons.chats}     label="Chats"     isActive={isChats}     onClick={() => navigate('/chats')} />
+                            <NavItem icon={icons.dashboard} label="Dashboard" isActive={isDashboard} onClick={() => navigate('/dashboard')} />
+                            <NavItem icon={icons.settings}  label="Settings"  isActive={isSettingsTab || isSettings}  onClick={() => navigate('/settings')} />
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Main Content Area */}
-                <div className="flex-1 flex flex-col md:flex-row h-full w-full relative">
+                <div className={`flex-1 flex flex-col md:flex-row h-full w-full relative ${!isInsideChat ? 'pb-16 md:pb-0' : ''}`}>
                     
                     {/* Sidebar: Chats List */}
                     <div className={`

@@ -44,7 +44,7 @@ export interface Contact {
 //  ADMIN         Owner / Partner — full access, sees ALL orders & channels
 //  MERCHANDISER  Manages orders end-to-end, creates channels, DCs, invoices
 //  MANAGER       Production / Floor manager — operational, cannot create orders
-//  SENIOR_STAFF  Dispatch / logistics — creates DCs and ICs, manages drivers
+//  SENIOR_STAFF  Dispatch / logistics — creates DCs and ICs
 //  JUNIOR_STAFF  Trainee / support — read + message only, cannot create docs
 //
 //  Visibility rule:
@@ -121,6 +121,7 @@ export interface Channel {
   files: AttachedFile[];
   last_activity_at?: string;
   last_read_at?: string;
+  last_message?: string;
   due_date?: string;
   created_at?: string;
 }
@@ -153,7 +154,7 @@ export interface DCItem {
   unit:        string; // KG, MTR, PCS, SET, BAG, ...
 }
 
-/** Outward Delivery Challan — created by the sender at point of dispatch. */
+/** Outward Delivery Challan — created by the sender at point of dispatch; includes driver details. */
 export interface DeliveryChallan {
   id:                   string;
   dc_number:            string;
@@ -168,11 +169,12 @@ export interface DeliveryChallan {
   driver_phone?:        string;
   driver_photo_url?:    string;
   notes?:               string;
-  status:               'CANCELLED' | 'RECEIVED' | 'RETURNED';
+  status:               'DELIVERED' | 'BILLED' | 'CANCELLED' | 'RETURNED';
   created_at?:          string;
   sender_company?:      Company;
   receiver_company?:    Company;
   receiver_contact?:    Contact;
+  parent_order?:        Order;
 }
 
 /** Inward Challan — created by the receiver when goods arrive. */
@@ -187,38 +189,31 @@ export interface InwardChallan {
   order_number?:        string;
   ref_order_number?:    string;
   items_received:       DCItem[];
+  status?:              'TO_RECEIVE' | 'RECEIVED' | 'RETURNED';
   discrepancies?:       string;
   notes?:               string;
   created_at?:          string;
   sender_company?:      Company;
   sender_contact?:      Contact;
   receiver_company?:    Company;
+  parent_order?:        Order;
 }
 
-/** Reusable driver / courier profile saved per company. */
-export interface Driver {
-  id:          string;
-  company_id:  string;
-  name:        string;
-  phone?:      string;
-  photo_url?:  string;
-  created_at?: string;
-}
 
-// ── Invoice / Quotation types ─────────────────────────────────────────────────
+// ── Invoice types ─────────────────────────────────────────────────────────────
 
 /**
  * GST type — determines how the rate is split on the document.
  *   CGST_SGST → intra-state: CGST (rate/2) + SGST (rate/2) shown separately
  *   IGST      → inter-state: IGST (full rate) shown as one line
  */
-export type GSTType = 'CGST_SGST' | 'IGST';
+export type GSTType = 'CGST_SGST' | 'IGST' | 'NONE';
 
 /** Valid Indian GST rate slabs. */
 export type GSTRate = 3 | 5 | 12 | 18;
 
 /**
- * A single line item on an Invoice or Quotation.
+ * A single line item on an Invoice.
  * amount = quantity × rate (stored pre-calculated to avoid floating-point drift).
  */
 export interface InvoiceItem {
@@ -260,7 +255,7 @@ export interface Invoice {
   total_amount:      number;         // subtotal + gst_amount (or just subtotal)
   due_date?:         string;         // ISO date
   notes?:            string;
-  status:            'DRAFT' | 'SENT';
+
   created_by:        string;         // user ID
   created_at?:       string;
   updated_at?:       string;
@@ -271,36 +266,16 @@ export interface Invoice {
   buyer_contact?:    Contact;
 }
 
-/**
- * Quotation — a rate quote sent before a formal invoice.
- * Same line-item structure as Invoice.
- * Has extra statuses: ACCEPTED and REJECTED (buyer can respond).
- * Has valid_until — the quote expires on that date.
- */
-export interface Quotation {
-  id:                   string;
-  quotation_number:     string;       // e.g. QT-260322-001
-  sender_company_id:    string;
-  receiver_company_id?: string;
-  receiver_contact_id?: string;
-  order_id?:            string;
-  channel_id?:          string;
-  items:                InvoiceItem[];
-  subtotal:             number;
-  gst_type?:            GSTType;
-  gst_rate?:            GSTRate;
-  gst_amount?:          number;
-  total_amount:         number;
-  valid_until?:         string;       // expiry ISO date
-  notes?:               string;
-  status:               'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED';
-  created_by:           string;
-  created_at?:          string;
-  updated_at?:          string;
-  // Joined for display
-  sender_company?:      Company;
-  receiver_company?:    Company;
+export interface Expense {
+  id: string;
+  company_id: string;
+  order_id?: string;
+  description: string;
+  amount: number;
+  created_by: string;
+  created_at: string;
 }
+
 
 // ── Permission system ─────────────────────────────────────────────────────────
 
@@ -318,18 +293,19 @@ export type Permission =
   | 'CHANGE_USER_ROLE'
   // Delivery documents
   | 'CREATE_DC'
+  | 'EDIT_DC'
+  | 'DELETE_DC'
   | 'CREATE_IC'
+  | 'EDIT_IC'
+  | 'DELETE_IC'
   | 'VIEW_DC'
   // Financial documents
-  | 'CREATE_INVOICE'
-  | 'EDIT_INVOICE'
-  | 'DELETE_INVOICE'
-  | 'CREATE_QUOTATION'
-  | 'EDIT_QUOTATION'
-  | 'DELETE_QUOTATION'
+  | 'CREATE_SALES_INVOICE' | 'EDIT_SALES_INVOICE' | 'DELETE_SALES_INVOICE'
+  | 'CREATE_PURCHASE_INVOICE' | 'EDIT_PURCHASE_INVOICE' | 'DELETE_PURCHASE_INVOICE'
+  | 'CREATE_SIMPLE_EXPENSE'
+  | 'DELETE_SIMPLE_EXPENSE'
   | 'VIEW_FINANCIALS'
-  // Drivers
-  | 'MANAGE_DRIVERS'
+
   // Contacts & Partnerships
   | 'MANAGE_CONTACTS'
   | 'SEND_PARTNERSHIP_INVITE'
@@ -348,11 +324,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'CREATE_CHANNEL', 'EDIT_CHANNEL', 'DELETE_CHANNEL',
     'ADD_CHANNEL_MEMBER', 'REMOVE_CHANNEL_MEMBER',
     'ADD_TEAM_MEMBER', 'CHANGE_USER_ROLE',
-    'CREATE_DC', 'CREATE_IC', 'VIEW_DC',
-    'CREATE_INVOICE', 'EDIT_INVOICE', 'DELETE_INVOICE',
-    'CREATE_QUOTATION', 'EDIT_QUOTATION', 'DELETE_QUOTATION',
+    'CREATE_DC', 'EDIT_DC', 'DELETE_DC',
+    'CREATE_IC', 'EDIT_IC', 'DELETE_IC',
+    'VIEW_DC',
+    'CREATE_SALES_INVOICE', 'EDIT_SALES_INVOICE', 'DELETE_SALES_INVOICE',
+    'CREATE_PURCHASE_INVOICE', 'EDIT_PURCHASE_INVOICE', 'DELETE_PURCHASE_INVOICE',
+    'CREATE_SIMPLE_EXPENSE', 'DELETE_SIMPLE_EXPENSE',
     'VIEW_FINANCIALS',
-    'MANAGE_DRIVERS',
     'MANAGE_CONTACTS',
     'SEND_PARTNERSHIP_INVITE', 'ACCEPT_PARTNERSHIP_INVITE',
     'DELETE_ORG',
@@ -363,30 +341,39 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'CREATE_CHANNEL', 'EDIT_CHANNEL', 'DELETE_CHANNEL',
     'ADD_CHANNEL_MEMBER', 'REMOVE_CHANNEL_MEMBER',
     'ADD_TEAM_MEMBER',
-    'CREATE_DC', 'CREATE_IC', 'VIEW_DC',
-    'CREATE_INVOICE', 'EDIT_INVOICE', 'DELETE_INVOICE',
-    'CREATE_QUOTATION', 'EDIT_QUOTATION', 'DELETE_QUOTATION',
-    'VIEW_FINANCIALS',
-    'MANAGE_DRIVERS',
+    'CREATE_DC', 'EDIT_DC', 'DELETE_DC',
+    'CREATE_IC', 'EDIT_IC', 'DELETE_IC',
+    'VIEW_DC',
+    'CREATE_PURCHASE_INVOICE', 'EDIT_PURCHASE_INVOICE', 'DELETE_PURCHASE_INVOICE',
+    'CREATE_SIMPLE_EXPENSE', 'DELETE_SIMPLE_EXPENSE',
     'MANAGE_CONTACTS',
     'SEND_PARTNERSHIP_INVITE', 'ACCEPT_PARTNERSHIP_INVITE',
   ],
 
   MANAGER: [
-    'CREATE_DC', 'CREATE_IC', 'VIEW_DC',
-    'CREATE_INVOICE', 'EDIT_INVOICE', 'DELETE_INVOICE',
-    'CREATE_QUOTATION', 'EDIT_QUOTATION', 'DELETE_QUOTATION',
-    'MANAGE_DRIVERS',
+    'ADD_CHANNEL_MEMBER', 'REMOVE_CHANNEL_MEMBER',
+    'CREATE_DC', 'EDIT_DC', 'DELETE_DC',
+    'CREATE_IC', 'EDIT_IC', 'DELETE_IC',
+    'VIEW_DC',
+    'CREATE_PURCHASE_INVOICE', 'EDIT_PURCHASE_INVOICE', 'DELETE_PURCHASE_INVOICE',
+    'CREATE_SIMPLE_EXPENSE', 'DELETE_SIMPLE_EXPENSE',
     'ADD_TEAM_MEMBER',
-    'ACCEPT_PARTNERSHIP_INVITE',
+    'MANAGE_CONTACTS',
+    'SEND_PARTNERSHIP_INVITE', 'ACCEPT_PARTNERSHIP_INVITE',
   ],
 
   SENIOR_STAFF: [
-    'CREATE_DC', 'CREATE_IC', 'VIEW_DC',
-    'MANAGE_DRIVERS',
+    'ADD_CHANNEL_MEMBER', 'REMOVE_CHANNEL_MEMBER',
+    'CREATE_DC', 'EDIT_DC', 'DELETE_DC',
+    'CREATE_IC', 'EDIT_IC', 'DELETE_IC',
+    'VIEW_DC',
+    'CREATE_SIMPLE_EXPENSE',
+    'MANAGE_CONTACTS',
+    'SEND_PARTNERSHIP_INVITE',
   ],
 
   JUNIOR_STAFF: [
+    'CREATE_SIMPLE_EXPENSE',
     'VIEW_DC',
   ],
 

@@ -35,7 +35,9 @@ export const resolveFrom = (doc: DeliveryChallan | InwardChallan | Invoice): Uni
 
     // 3. Invoice: From is the seller
     if ('invoice_number' in doc) {
-        return wrapPartner(doc.seller_company, doc.seller_contact);
+        // For Purchase Invoices, we might have a textual seller_name
+        const sellerNameFallback = (doc as any).seller_name;
+        return wrapPartner(doc.seller_company, (doc as any).seller_contact, sellerNameFallback);
     }
 
     return null;
@@ -57,7 +59,9 @@ export const resolveTo = (doc: DeliveryChallan | InwardChallan | Invoice): Unifi
 
     // 3. Invoice: To is the buyer
     if ('invoice_number' in doc) {
-        return wrapPartner(doc.buyer_company, doc.buyer_contact);
+        // For Purchase Invoices, buyer_company_id might be a textual name (e.g. "Jain Button House")
+        const rawBuyerName = (typeof doc.buyer_company_id === 'string' && doc.buyer_company_id.length < 30) ? doc.buyer_company_id : undefined;
+        return wrapPartner(doc.buyer_company, doc.buyer_contact, rawBuyerName);
     }
 
     return null;
@@ -66,9 +70,8 @@ export const resolveTo = (doc: DeliveryChallan | InwardChallan | Invoice): Unifi
 /**
  * Helper to normalize Company or Contact into a UnifiedPartner
  */
-function wrapPartner(comp?: Company, cont?: Contact): UnifiedPartner | null {
+function wrapPartner(comp?: Company, cont?: Contact, fallbackName?: string): UnifiedPartner | null {
     // Priority 1: Use the manually saved contact details if present.
-    // This respects the user's specific address book entry for this transaction.
     if (cont) {
         return {
             id:         cont.id,
@@ -95,5 +98,15 @@ function wrapPartner(comp?: Company, cont?: Contact): UnifiedPartner | null {
             raw:        comp
         };
     }
+
+    // Priority 3: Fallback to a raw text name (for offline traders/manual entries)
+    if (fallbackName && fallbackName.length > 0) {
+        return {
+            id:         'manual',
+            name:       fallbackName,
+            isPlatform: false
+        };
+    }
+
     return null;
 }

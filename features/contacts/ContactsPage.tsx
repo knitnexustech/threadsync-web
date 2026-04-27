@@ -13,7 +13,7 @@
  */
 
 import React from 'react';
-import { User } from '../../types';
+import { User, hasPermission } from '../../types';
 import { useContacts }      from './useContacts';
 import { ContactCard }      from './components/ContactCard';
 import { AddContactModal }  from './components/AddContactModal';
@@ -23,7 +23,7 @@ interface ContactsPageProps {
 }
 
 export const ContactsPage: React.FC<ContactsPageProps> = ({ currentUser }) => {
-    const canManage = currentUser.role === 'ADMIN';
+    const canManage = hasPermission(currentUser.role, 'MANAGE_CONTACTS');
 
     const {
         contacts, isLoading,
@@ -50,7 +50,7 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ currentUser }) => {
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
 
                 {/* ── Header ────────────────────────────────────────────────── */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <h2 className="text-base font-black text-gray-900">Contact Book</h2>
                         <p className="text-xs text-gray-400 mt-0.5">
@@ -60,7 +60,7 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ currentUser }) => {
                     {canManage && (
                         <button
                             onClick={openAdd}
-                            className="flex items-center gap-2 px-4 py-2 bg-[#008069] text-white rounded-xl text-sm font-black shadow-md hover:bg-[#006a57] transition-all"
+                            className="flex items-center justify-center gap-2 px-4 py-2 bg-[#008069] text-white rounded-xl text-sm font-black shadow-md hover:bg-[#006a57] transition-all w-full sm:w-auto"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />

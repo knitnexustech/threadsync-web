@@ -33,6 +33,15 @@ export const useTeam = (currentUser: User) => {
         onError: (err: any) => alert(err.message || "Failed to remove team member")
     });
 
+    const updateRoleMutation = useMutation({
+        mutationFn: ({ userId, role }: { userId: string, role: User['role'] }) => 
+            api.updateUserRole(currentUser, userId, role),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['team'] });
+        },
+        onError: (err: any) => alert(err.message || "Failed to update role")
+    });
+
     return {
         teamList,
         isLoading,
@@ -41,5 +50,6 @@ export const useTeam = (currentUser: User) => {
         addTeamMember: addTeamMemberMutation.mutate,
         isAdding: addTeamMemberMutation.isPending,
         deleteTeamMember: deleteTeamMemberMutation.mutate,
+        updateUserRole: updateRoleMutation.mutate,
     };
 };

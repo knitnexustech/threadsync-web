@@ -57,7 +57,7 @@ export const ItemsTable: React.FC<ItemsTableProps> = ({ items, onChange }) => {
                             value={item.description}
                             onChange={e => update(i, { description: e.target.value })}
                             placeholder={`e.g. Cotton fabric, Buttons...`}
-                            className="px-3 py-2.5 bg-white md:bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all"
+                            className="px-3 py-2 bg-white md:bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all"
                         />
                     </div>
 

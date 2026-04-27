@@ -25,6 +25,7 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
 }) => {
     const [step, setStep] = useState<'MODE' | 'PICK_GROUP'>('MODE');
     const [sharing, setSharing] = useState(false);
+    const [selectedChannelIds, setSelectedChannelIds] = useState<Set<string>>(new Set());
 
     const docNumber = docData.dc_number || docData.invoice_number;
     const fileName = `${docType}_${docNumber}.pdf`;
@@ -49,7 +50,8 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
         }
     };
 
-    const handleSendToGroup = async (channel: Channel) => {
+    const handleSendToGroups = async () => {
+        if (selectedChannelIds.size === 0) return;
         setSharing(true);
         try {
             // 1. Convert base64 to File
@@ -65,13 +67,16 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
             // 2. Upload
             const publicUrl = await api.uploadFile(file);
 
-            // 3. Send message
-            await api.sendMessage(currentUser, channel.id, `[FILE] ${publicUrl} | ${fileName}`);
+            // 3. Send message to all selected groups
+            const targets = Array.from(selectedChannelIds);
+            await Promise.all(targets.map(channelId => 
+                api.sendMessage(currentUser, channelId, `[FILE] ${publicUrl} | ${fileName}`)
+            ));
             
-            alert(`Sent to ${channel.name}!`);
+            alert(`Sent to ${targets.length} groups!`);
             onClose();
         } catch (err: any) {
-            alert('Failed to send to group: ' + err.message);
+            alert('Failed to send to groups: ' + err.message);
         } finally {
             setSharing(false);
         }
@@ -120,7 +125,7 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
             ) : (
                 <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm text-gray-500 font-medium">Select a group to share with:</p>
+                        <p className="text-sm text-gray-500 font-medium">Select groups ({selectedChannelIds.size})</p>
                         <button onClick={() => setStep('MODE')} className="text-xs font-black text-[#008069] underline">Back</button>
                     </div>
 
@@ -133,32 +138,36 @@ export const DocumentShareModal: React.FC<DocumentShareModalProps> = ({
                             channels.map(ch => (
                                 <button 
                                     key={ch.id}
-                                    onClick={() => handleSendToGroup(ch)}
+                                    onClick={() => {
+                                        const next = new Set(selectedChannelIds);
+                                        if (next.has(ch.id)) next.delete(ch.id); else next.add(ch.id);
+                                        setSelectedChannelIds(next);
+                                    }}
                                     disabled={sharing}
-                                    className="w-full flex items-center gap-3 p-3 bg-gray-50 hover:bg-[#e7f3f1] border border-gray-100 rounded-xl transition-all text-left group"
+                                    className={`w-full flex items-center gap-3 p-3 border rounded-xl transition-all text-left group ${selectedChannelIds.has(ch.id) ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100 hover:bg-white'}`}
                                 >
-                                    <div className="w-10 h-10 bg-white rounded-lg border border-gray-100 flex items-center justify-center font-black text-xs text-gray-700 shadow-sm group-hover:text-[#008069] group-hover:border-[#008069]/30">
+                                    <div className={`w-10 h-10 rounded-lg border flex items-center justify-center font-black text-xs shadow-sm transition-colors ${selectedChannelIds.has(ch.id) ? 'bg-[#008069] text-white border-[#008069]' : 'bg-white text-gray-700 border-gray-100'}`}>
                                         {ch.name[0]}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-gray-800 truncate">{ch.name}</p>
+                                        <p className={`text-sm font-bold truncate ${selectedChannelIds.has(ch.id) ? 'text-[#008069]' : 'text-gray-800'}`}>{ch.name}</p>
                                         <p className="text-[10px] text-gray-400 uppercase font-black tracking-tighter mt-0.5">{ch.type} GROUP</p>
                                     </div>
-                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <svg className="w-5 h-5 text-[#008069]" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                                        </svg>
-                                    </div>
+                                    {selectedChannelIds.has(ch.id) && (
+                                        <div className="h-6 w-6 bg-[#008069] rounded-full flex items-center justify-center text-white text-[10px] font-black">✓</div>
+                                    )}
                                 </button>
                             ))
                         )}
                     </div>
 
-                    {sharing && (
-                        <div className="flex items-center justify-center gap-3 py-4 text-[#008069] animate-pulse">
-                            <span className="text-sm font-black uppercase tracking-widest">Sending Document...</span>
-                        </div>
-                    )}
+                    <button 
+                        onClick={handleSendToGroups}
+                        disabled={selectedChannelIds.size === 0 || sharing}
+                        className="w-full py-4 bg-[#008069] text-white font-bold rounded-2xl shadow-lg hover:bg-[#006a57] disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
+                    >
+                        {sharing ? 'Sending Document...' : `Send to ${selectedChannelIds.size} Selected Groups`}
+                    </button>
                 </div>
             )}
         </Modal>

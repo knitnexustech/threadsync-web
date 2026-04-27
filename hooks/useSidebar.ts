@@ -7,23 +7,23 @@ import { api } from '../supabaseAPI';
 export const useSidebar = (currentUser: User, selectedGroupId?: string) => {
     const queryClient = useQueryClient();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'PENDING' | 'IN_PROGRESS' | 'COMPLETED'>('PENDING');
+    const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED'>('ALL');
+    const [sidebarView, setSidebarView] = useState<'ORDER' | 'PARTNER'>('ORDER');
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
-    const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
-    const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [userCompany, setUserCompany] = useState<Company | null>(null);
-    const [vendorsList, setVendorsList] = useState<Company[]>([]);
     const [modalState, setModalState] = useState<{
-        type: 'NONE' | 'NEW_ORDER' | 'ADD_GROUP' | 'EDIT_ORDER' | 'DELETE_ORDER';
+        type: 'NONE' | 'NEW_ORDER' | 'NEW_GROUP' | 'EDIT_ORDER' | 'DELETE_ORDER' | 'UPDATE_PASSCODE' | 'EDIT_COMPANY' | 'DELETE_ORGANIZATION' | 'HOW_TO_INSTALL';
         data?: any;
     }>({ type: 'NONE' });
 
     // Form States
     const [newOrderData, setNewOrderData] = useState({ orderNo: '', styleNo: '', selectedTeamMembers: [] as string[] });
-    const [newGroupData, setNewGroupData] = useState({ name: '', vendorId: '', orderId: '' });
     const [editOrderData, setEditOrderData] = useState({ orderNo: '', styleNo: '', status: 'PENDING' });
+    const [passcodeData, setPasscodeData] = useState({ oldPasscode: '', newPasscode: '', confirmPasscode: '' });
+    const [editCompanyName, setEditCompanyName] = useState('');
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
     const prevSelectedId = useRef<string | undefined>(selectedGroupId);
 
@@ -38,12 +38,7 @@ export const useSidebar = (currentUser: User, selectedGroupId?: string) => {
         queryFn: () => api.getAllChannels(currentUser),
     });
 
-    const { data: partners = [], isLoading: loadingPartners } = useQuery({
-        queryKey: ['partners', currentUser.id],
-        queryFn: () => api.getPartners(currentUser),
-    });
-
-    const loading = loadingOrders || loadingChannels || loadingPartners;
+    const loading = loadingOrders || loadingChannels;
 
     // Derived Data
     const channelsMap = useMemo(() => {
@@ -83,7 +78,7 @@ export const useSidebar = (currentUser: User, selectedGroupId?: string) => {
     }, [currentUser.company_id]);
 
     useEffect(() => {
-        setActiveTab('PENDING');
+        setActiveTab('ALL');
     }, []);
 
     useEffect(() => {
@@ -109,27 +104,9 @@ export const useSidebar = (currentUser: User, selectedGroupId?: string) => {
         }
     });
 
-    const createGroupMutation = useMutation({
-        mutationFn: (data: { name: string; vendorId: string; orderId: string }) =>
-            api.createChannel(currentUser, data.orderId, data.name, data.vendorId),
-        onSuccess: () => {
-            closeModal();
-            handleRefresh();
-        },
-        onError: (err: any) => alert(err.message || "Failed to create group")
-    });
-
     const handleCreateOrder = async () => {
         if (!newOrderData.orderNo || !newOrderData.styleNo) return;
         createOrderMutation.mutate(newOrderData);
-    };
-
-    const handleCreateGroup = async () => {
-        if (!newGroupData.name.trim() || !newGroupData.orderId) {
-            alert("Please fill in Group Name and select an Order.");
-            return;
-        }
-        createGroupMutation.mutate({ name: newGroupData.name, vendorId: newGroupData.vendorId, orderId: newGroupData.orderId });
     };
 
     const handleOrderStatusChange = async (orderId: string, newStatus: any) => {
@@ -165,14 +142,58 @@ export const useSidebar = (currentUser: User, selectedGroupId?: string) => {
         finally { setIsProcessing(false); }
     };
 
+    const handleUpdatePasscode = async () => {
+        if (passcodeData.newPasscode !== passcodeData.confirmPasscode) {
+            alert("New passcodes do not match");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            await api.updatePasscode(currentUser.id, passcodeData.oldPasscode, passcodeData.newPasscode);
+            alert("Passcode updated successfully!");
+            closeModal();
+        } catch (err: any) { alert(err.message); }
+        finally { setIsProcessing(false); }
+    };
+
+    const handleUpdateCompanyName = async () => {
+        if (!userCompany?.id || !editCompanyName.trim()) return;
+        setIsProcessing(true);
+        try {
+            await api.updateCompanyName(userCompany.id, editCompanyName);
+            queryClient.invalidateQueries({ queryKey: ['company', userCompany.id] });
+            alert("Company name updated!");
+            closeModal();
+        } catch (err: any) { alert(err.message); }
+        finally { setIsProcessing(false); }
+    };
+
+    const handleDeleteOrganization = async () => {
+        if (!userCompany?.id || deleteConfirmText !== userCompany.name) return;
+        if (!confirm(`Are you absolutely sure? This will delete all orders, chats, and members for ${userCompany.name}.`)) return;
+        
+        setIsProcessing(true);
+        try {
+            await api.deleteOrganization(currentUser, userCompany.id);
+            alert("Organization deleted.");
+            navigate('/login');
+        } catch (err: any) { alert(err.message); }
+        finally { setIsProcessing(false); }
+    };
+
     const openModal = async (type: typeof modalState.type, data?: any) => {
         setModalState({ type, data });
-        if (type === 'ADD_GROUP') {
-            setVendorsList(await api.getAcceptedPartners(currentUser));
-            setNewGroupData({ name: '', vendorId: '', orderId: data?.orderId || '' });
-        }
         if (type === 'EDIT_ORDER' && data) {
             setEditOrderData({ orderNo: data.order_number, styleNo: data.style_number, status: data.status });
+        }
+        if (type === 'UPDATE_PASSCODE') {
+            setPasscodeData({ oldPasscode: '', newPasscode: '', confirmPasscode: '' });
+        }
+        if (type === 'EDIT_COMPANY') {
+            setEditCompanyName(userCompany?.name || '');
+        }
+        if (type === 'DELETE_ORGANIZATION') {
+            setDeleteConfirmText('');
         }
     };
 
@@ -198,29 +219,44 @@ export const useSidebar = (currentUser: User, selectedGroupId?: string) => {
         return d < now;
     };
 
+    const isDueSoon = (date: string | undefined) => {
+        if (!date) return false;
+        const d = new Date(date);
+        const now = new Date();
+        const weekAway = new Date();
+        weekAway.setDate(now.getDate() + 7);
+        
+        now.setHours(0, 0, 0, 0);
+        d.setHours(0, 0, 0, 0);
+        weekAway.setHours(23, 59, 59, 999);
+
+        return d <= weekAway; // Red if overdue OR due within 7 days
+    };
+
     return {
         activeTab, setActiveTab,
         globalSearchQuery, setGlobalSearchQuery,
         expandedOrders, toggleOrder,
-        isSupplierDropdownOpen, setIsSupplierDropdownOpen,
-        supplierSearchQuery, setSupplierSearchQuery,
         isProcessing,
         userCompany,
-        vendorsList,
         modalState,
         openModal, closeModal,
         newOrderData, setNewOrderData,
-        newGroupData, setNewGroupData,
         editOrderData, setEditOrderData,
         loading,
-        orders, allChannels, partners,
+        orders, allChannels,
         channelsMap,
         canCreateOrder, canEditOrder, canDeleteOrder, canCreateGroup,
-        handleCreateOrder, handleCreateGroup, handleOrderStatusChange,
+        handleCreateOrder, handleOrderStatusChange,
         handleEditOrder, handleDeleteOrder,
-        createOrderMutation, createGroupMutation,
-        isOverdue,
+        handleUpdatePasscode, handleUpdateCompanyName, handleDeleteOrganization,
+        createOrderMutation,
+        isOverdue, isDueSoon,
         queryClient,
-        navigate
+        navigate,
+        sidebarView, setSidebarView,
+        passcodeData, setPasscodeData,
+        editCompanyName, setEditCompanyName,
+        deleteConfirmText, setDeleteConfirmText
     };
 };

@@ -25,7 +25,7 @@
  */
 
 import { supabase, supabaseAdmin } from '../supabaseClient';
-import { User, InwardChallan, DCItem } from '../types';
+import { User, InwardChallan, DCItem, hasPermission } from '../types';
 
 // ── IC Number Generator ─────────────────────────────────────────────────────
 
@@ -60,7 +60,8 @@ const IC_SELECT = `
     ),
     receiver_company:companies!receiver_company_id(
         id, name, gst_number, kramiz_id
-    )
+    ),
+    parent_order:orders!order_number(id, order_number, style_number)
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -83,10 +84,14 @@ export const createInwardChallan = async (
         ref_order_number?:  string;   // sender's order ref (from their DC)
         items_received:     DCItem[]; // what actually arrived
         discrepancies?:     string;   // free-text: shortages, damage, wrong items
+        status?:            'RECEIVED' | 'RETURNED';
         notes?:             string;
         created_at?:        string;
     }
 ): Promise<InwardChallan> => {
+    if (!hasPermission(currentUser.role, 'CREATE_IC')) {
+        throw new Error('You do not have permission to create inward challans');
+    }
     if (!params.items_received?.length) {
         throw new Error('At least one item is required on an Inward Challan');
     }
@@ -99,9 +104,10 @@ export const createInwardChallan = async (
     const { data, error } = await supabase
         .from('inward_challans')
         .insert({
+            ...params,
             ic_number,
             receiver_company_id: currentUser.company_id,
-            ...params,
+            status: params.status || 'RECEIVED',
         })
         .select(IC_SELECT)
         .single();
@@ -128,6 +134,18 @@ export const createInwardChallan = async (
  * All Inward Challans where the current company is the RECEIVER.
  * Sorted newest-first.
  */
+export const getInwardChallansForOrder = async (orderId: string, orderNumber?: string): Promise<InwardChallan[]> => {
+    // NOTE: Your DB column is named 'order_number' but stores the Order UUID.
+    const { data, error } = await supabase
+        .from('inward_challans')
+        .select(IC_SELECT)
+        .eq('order_number', orderId)
+        .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return (data || []) as InwardChallan[];
+};
+
 export const getInwardChallansReceived = async (
     currentUser: User
 ): Promise<InwardChallan[]> => {
@@ -229,6 +247,9 @@ export const updateInwardChallan = async (
         ref_order_number:  string;
     }>
 ): Promise<InwardChallan> => {
+    if (!hasPermission(currentUser.role, 'EDIT_IC')) {
+        throw new Error('You do not have permission to edit inward challans');
+    }
     const { data, error } = await supabase
         .from('inward_challans')
         .update(updates)
@@ -254,6 +275,9 @@ export const deleteInwardChallan = async (
     currentUser: User,
     icId: string
 ): Promise<void> => {
+    if (!hasPermission(currentUser.role, 'DELETE_IC')) {
+        throw new Error('You do not have permission to delete inward challans');
+    }
     const { error } = await supabase
         .from('inward_challans')
         .delete()

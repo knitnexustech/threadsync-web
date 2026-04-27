@@ -12,7 +12,7 @@
  */
 
 import { supabase } from '../supabaseClient';
-import { Contact, User } from '../types';
+import { Contact, User, hasPermission } from '../types';
 
 // Fetch all contacts owned by the current company
 export const getContacts = async (currentUser: User): Promise<Contact[]> => {
@@ -31,6 +31,9 @@ export const createContact = async (
     currentUser: User,
     contact: Pick<Contact, 'name' | 'gst_number' | 'address' | 'state' | 'pincode' | 'phone' | 'notes'>
 ): Promise<Contact> => {
+    if (!hasPermission(currentUser.role, 'MANAGE_CONTACTS')) {
+        throw new Error('You do not have permission to manage contacts');
+    }
     if (!contact.name.trim()) throw new Error('Contact name is required');
 
     const { data, error } = await supabase
@@ -56,6 +59,9 @@ export const updateContact = async (
     contactId: string,
     updates: Partial<Pick<Contact, 'name' | 'gst_number' | 'address' | 'state' | 'pincode' | 'phone' | 'notes'>>
 ): Promise<Contact> => {
+    if (!hasPermission(currentUser.role, 'MANAGE_CONTACTS')) {
+        throw new Error('You do not have permission to manage contacts');
+    }
     const { data, error } = await supabase
         .from('contacts')
         .update(updates)
@@ -70,6 +76,9 @@ export const updateContact = async (
 
 // Delete a contact
 export const deleteContact = async (currentUser: User, contactId: string): Promise<void> => {
+    if (!hasPermission(currentUser.role, 'MANAGE_CONTACTS')) {
+        throw new Error('You do not have permission to manage contacts');
+    }
     const { error } = await supabase
         .from('contacts')
         .delete()
@@ -81,6 +90,9 @@ export const deleteContact = async (currentUser: User, contactId: string): Promi
 
 // Mark a contact as "invite sent" — records the timestamp
 export const markInviteSent = async (currentUser: User, contactId: string): Promise<void> => {
+    if (!hasPermission(currentUser.role, 'MANAGE_CONTACTS')) {
+        throw new Error('You do not have permission to manage contacts');
+    }
     const { error } = await supabase
         .from('contacts')
         .update({ invite_sent_at: new Date().toISOString() })
@@ -96,6 +108,9 @@ export const linkContactToCompany = async (
     contactId: string,
     kramizCompanyId: string
 ): Promise<void> => {
+    if (!hasPermission(currentUser.role, 'MANAGE_CONTACTS')) {
+        throw new Error('You do not have permission to manage contacts');
+    }
     const { error } = await supabase
         .from('contacts')
         .update({ linked_company_id: kramizCompanyId })

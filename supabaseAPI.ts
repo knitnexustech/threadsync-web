@@ -14,7 +14,7 @@ import * as deliveryChallanApi from './api/deliveryChallans';
 import * as inwardChallanApi   from './api/inwardChallans';
 import * as salesInvoiceApi    from './api/salesInvoices';
 import * as purchaseInvoiceApi from './api/purchaseInvoices';
-import * as quotationApi       from './api/quotations';
+import * as expensesApi        from './api/expenses';
 
 // ============================================
 // AUTHENTICATION
@@ -283,6 +283,24 @@ export const api = {
      * Ensures an 'Overview' channel exists for an order.
      * Useful for orders created before this logic was automated or if creation failed midway.
      */
+    deleteChannel: async (currentUser: User, channelId: string) => {
+        const isAdmin = ['ADMIN', 'SENIOR_MANAGER', 'SENIOR_MERCHANDISER'].includes(currentUser.role);
+        if (!isAdmin) throw new Error('You do not have permission to delete groups');
+
+        // Delete associated data manually to be safe (though DB should handle cascade)
+        await supabase.from('channel_members').delete().eq('channel_id', channelId);
+        await supabase.from('messages').delete().eq('channel_id', channelId);
+        await supabase.from('channel_specs').delete().eq('channel_id', channelId);
+        await supabase.from('channel_files').delete().eq('channel_id', channelId);
+
+        const { error } = await supabase
+            .from('channels')
+            .delete()
+            .eq('id', channelId);
+
+        if (error) throw new Error('Failed to delete: ' + error.message);
+    },
+
     repairOrderOverview: async (currentUser: User, orderId: string) => {
         // 1. Initial check
         const { data: existing } = await supabase
@@ -416,10 +434,12 @@ export const api = {
                 *,
                 channel_members!inner(user_id, last_read_at),
                 channel_specs(*),
-                channel_files(*)
+                channel_files(*),
+                messages(content, created_at)
             `)
             .eq('order_id', orderId)
-            .eq('channel_members.user_id', currentUser.id);
+            .eq('channel_members.user_id', currentUser.id)
+            .order('created_at', { foreignTable: 'messages', ascending: false });
 
         if (error) throw new Error(error.message);
 
@@ -431,7 +451,15 @@ export const api = {
                 uploadedBy: f.uploaded_by,
                 uploadedAt: f.uploaded_at
             })),
-            last_read_at: (channel.channel_members?.[0] as any)?.last_read_at
+            last_read_at: (channel.channel_members?.[0] as any)?.last_read_at,
+            last_message: (() => {
+                const raw = (channel.messages?.[0] as any)?.content || '';
+                if (raw.startsWith('[IMAGE]')) return 'Photo';
+                if (raw.startsWith('[FILE]')) return 'File';
+                if (raw.startsWith('[AUDIO]')) return 'Audio';
+                if (raw.startsWith('[DELETED]')) return 'Message deleted';
+                return raw || null;
+            })()
         })) as Channel[];
     },
 
@@ -442,9 +470,13 @@ export const api = {
                 *,
                 channel_members!inner(user_id, last_read_at),
                 channel_specs(*),
-                channel_files(*)
+                channel_files(*),
+                messages(content, created_at),
+                order:order_id(*),
+                vendor:vendor_id(id, name)
             `)
-            .eq('channel_members.user_id', currentUser.id);
+            .eq('channel_members.user_id', currentUser.id)
+            .order('created_at', { foreignTable: 'messages', ascending: false });
 
         if (error) throw new Error(error.message);
 
@@ -456,7 +488,15 @@ export const api = {
                 uploadedBy: f.uploaded_by,
                 uploadedAt: f.uploaded_at
             })),
-            last_read_at: (channel.channel_members?.[0] as any)?.last_read_at
+            last_read_at: (channel.channel_members?.[0] as any)?.last_read_at,
+            last_message: (() => {
+                const raw = (channel.messages?.[0] as any)?.content || '';
+                if (raw.startsWith('[IMAGE]')) return 'Photo';
+                if (raw.startsWith('[FILE]')) return 'File';
+                if (raw.startsWith('[AUDIO]')) return 'Audio';
+                if (raw.startsWith('[DELETED]')) return 'Message deleted';
+                return raw || null;
+            })()
         })) as Channel[];
     },
 
@@ -541,19 +581,6 @@ export const api = {
 
         if (error) throw new Error('Failed to update channel: ' + error.message);
         return data;
-    },
-
-    deleteChannel: async (currentUser: User, channelId: string) => {
-        if (!hasPermission(currentUser.role, 'DELETE_CHANNEL')) {
-            throw new Error('You do not have permission to delete channels');
-        }
-
-        const { error } = await supabase
-            .from('channels')
-            .delete()
-            .eq('id', channelId);
-
-        if (error) throw new Error('Failed to delete channel: ' + error.message);
     },
 
     // ============================================
@@ -815,7 +842,7 @@ export const api = {
             company_id: currentUser.company_id, name, phone, passcode, role
         }).select().single();
 
-        if (error) throw new Error('Failed to create team member');
+        if (error) throw new Error('Failed to create team member: ' + error.message);
         return data as User;
     },
 
@@ -934,5 +961,5 @@ export const api = {
     ...inwardChallanApi,   // → client/api/inwardChallans.ts   (Phase 3)
     ...salesInvoiceApi,    // → client/api/salesInvoices.ts
     ...purchaseInvoiceApi, // → client/api/purchaseInvoices.ts
-    ...quotationApi,       // → client/api/quotations.ts        (Phase 3)
+    ...expensesApi,        // → client/api/expenses.ts
 };

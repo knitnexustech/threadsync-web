@@ -164,8 +164,8 @@ export const deleteOrganization = async (
     currentUser: User,
     companyId: string
 ): Promise<void> => {
-    if (currentUser.role !== 'ADMIN') {
-        throw new Error('Only Admins can delete an organization');
+    if (!hasPermission(currentUser.role, 'DELETE_ORG')) {
+        throw new Error('You do not have permission to delete an organization');
     }
     if (currentUser.company_id !== companyId) {
         throw new Error('Unauthorized: you can only delete your own organization');

@@ -52,20 +52,20 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                     <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">
                         Company Name
                     </label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                         <input
                             type="text"
                             value={editCompanyName}
                             onChange={e => setEditCompanyName(e.target.value)}
                             placeholder={userCompany?.name || 'Company name'}
                             disabled={!canEdit}
-                            className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all disabled:text-gray-400"
+                            className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all disabled:text-gray-400 w-full"
                         />
                         {canEdit && (
                             <button
                                 onClick={handleSaveName}
                                 disabled={isSavingName || nameUnchanged}
-                                className="px-6 py-2 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-40 transition-all"
+                                className="px-6 py-2 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-40 transition-all w-full sm:w-auto"
                             >
                                 {isSavingName ? 'Saving...' : 'Update'}
                             </button>
@@ -85,7 +85,7 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                             </span>
                         )}
                     </label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                         <input
                             type="text"
                             value={editGSTNumber}
@@ -93,7 +93,7 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                             placeholder="e.g. 27AABCU9603R1ZX"
                             maxLength={15}
                             disabled={!canEdit}
-                            className={`flex-1 px-4 py-2 bg-gray-50 border rounded-xl text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-2 transition-all disabled:text-gray-400 ${
+                            className={`flex-1 px-4 py-2 bg-gray-50 border rounded-xl text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-2 transition-all disabled:text-gray-400 w-full ${
                                 !isGSTValid
                                     ? 'border-red-300 focus:ring-red-400'
                                     : editGSTNumber.length === 15
@@ -105,14 +105,14 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                             <button
                                 onClick={handleSaveGST}
                                 disabled={isSavingGST || gstUnchanged || !isGSTValid}
-                                className="px-6 py-2 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-40 transition-all"
+                                className="px-6 py-2 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-40 transition-all w-full sm:w-auto"
                             >
                                 {isSavingGST ? 'Saving...' : 'Save'}
                             </button>
                         )}
                     </div>
                     <div className="flex justify-between mt-1">
-                        <p className="text-xs text-gray-400">15 characters — uppercase letters and numbers only</p>
+                        <p className="text-xs text-gray-400">15 chars — letters and numbers</p>
                         <p className={`text-xs font-mono ${
                             editGSTNumber.length === 0 ? 'text-gray-300' :
                             editGSTNumber.length === 15 ? 'text-green-500' : 'text-red-400'
@@ -128,7 +128,7 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                 {/* ── Kramiz ID (read-only) ────────────────────────── */}
                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Your Kramiz ID</p>
-                    <p className="text-lg font-black font-mono tracking-widest text-gray-800">
+                    <p className="text-lg font-black font-mono tracking-widest text-gray-800 break-all">
                         {userCompany?.kramiz_id || '—'}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">
@@ -138,7 +138,7 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
 
                 {/* ── Address ──────────────────────────────────────── */}
                 <div className="space-y-3">
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest">
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mt-2">
                         Address
                     </label>
 
@@ -152,7 +152,7 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                         className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all disabled:text-gray-400"
                     />
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* State */}
                         <input
                             type="text"
@@ -160,7 +160,7 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                             onChange={e => setEditState(e.target.value)}
                             placeholder="State"
                             disabled={!canEdit}
-                            className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all disabled:text-gray-400"
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all disabled:text-gray-400"
                         />
 
                         {/* PIN Code */}
@@ -171,7 +171,7 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                             placeholder="PIN code"
                             maxLength={6}
                             disabled={!canEdit}
-                            className={`px-4 py-2 bg-gray-50 border rounded-xl text-sm font-mono focus:outline-none focus:ring-2 transition-all disabled:text-gray-400 ${
+                            className={`w-full px-4 py-2 bg-gray-50 border rounded-xl text-sm font-mono focus:outline-none focus:ring-2 transition-all disabled:text-gray-400 ${
                                 !isPincodeValid
                                     ? 'border-red-300 focus:ring-red-400'
                                     : editPincode.length === 6
@@ -185,7 +185,7 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                         <button
                             onClick={handleSaveAddress}
                             disabled={isSavingAddress || addressUnchanged || !isPincodeValid}
-                            className="px-6 py-2 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-40 transition-all"
+                            className="px-6 py-2 mt-2 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-40 transition-all w-full sm:w-auto"
                         >
                             {isSavingAddress ? 'Saving...' : 'Save Address'}
                         </button>

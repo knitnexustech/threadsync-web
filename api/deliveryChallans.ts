@@ -2,12 +2,12 @@
  * deliveryChallans.ts
  * Feature: Delivery Challan — Phase 3
  *
- * API functions for Outward DCs, Inward Challans, and Driver profiles.
+ * API functions for Outward DCs, Inward Challans, and Driver details for DCs.
  * Spread into the `api` object in supabaseAPI.ts.
  */
 
 import { supabase, supabaseAdmin } from '../supabaseClient';
-import { User, DeliveryChallan, Driver, DCItem } from '../types';
+import { User, DeliveryChallan, DCItem, hasPermission } from '../types';
 
 // ── DC Number Generators ────────────────────────────────────────────────────
 
@@ -58,6 +58,9 @@ export const createDeliveryChallan = async (
         created_at?:          string;
     }
 ): Promise<DeliveryChallan> => {
+    if (!hasPermission(currentUser.role, 'CREATE_DC')) {
+        throw new Error('You do not have permission to create delivery challans');
+    }
     if (!params.items?.length) throw new Error('At least one item is required');
     if (!params.receiver_company_id && !params.receiver_contact_id) {
         throw new Error('A recipient is required');
@@ -68,10 +71,10 @@ export const createDeliveryChallan = async (
     const { data, error } = await supabase
         .from('delivery_challans')
         .insert({
+            ...params,
             dc_number,
             sender_company_id: currentUser.company_id,
-            status: 'COMPLETED',
-            ...params,
+            status: 'DELIVERED',
         })
         .select(DC_SELECT)
         .single();
@@ -102,6 +105,18 @@ export const getDCsForChannel = async (channelId: string): Promise<DeliveryChall
     return (data || []) as DeliveryChallan[];
 };
 
+export const getDCsForOrder = async (orderId: string, orderNumber?: string): Promise<DeliveryChallan[]> => {
+    // NOTE: Your DB column is named 'order_number' but stores the Order UUID.
+    const { data, error } = await supabase
+        .from('delivery_challans')
+        .select(DC_SELECT)
+        .eq('order_number', orderId)
+        .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return (data || []) as DeliveryChallan[];
+};
+
 export const getDCById = async (dcId: string): Promise<DeliveryChallan | null> => {
     const { data, error } = await supabase
         .from('delivery_challans')
@@ -124,6 +139,9 @@ export const markDCBilled = async (currentUser: User, dcId: string): Promise<voi
 };
 
 export const markDCCancelled = async (currentUser: User, dcId: string): Promise<void> => {
+    const { data: dc } = await supabase.from('delivery_challans').select('status').eq('id', dcId).single();
+    if (dc?.status === 'BILLED') throw new Error('Cannot cancel a billed Delivery Challan.');
+
     const { error } = await supabase
         .from('delivery_challans')
         .update({ status: 'CANCELLED' })
@@ -149,6 +167,12 @@ export const updateDeliveryChallan = async (
         created_at:          string;
     }>
 ): Promise<DeliveryChallan> => {
+    if (!hasPermission(currentUser.role, 'EDIT_DC')) {
+        throw new Error('You do not have permission to edit delivery challans');
+    }
+    const { data: dc } = await supabase.from('delivery_challans').select('status').eq('id', dcId).single();
+    if (dc?.status === 'BILLED') throw new Error('Cannot edit a billed Delivery Challan.');
+
     const { data, error } = await supabase
         .from('delivery_challans')
         .update(updates)
@@ -162,6 +186,12 @@ export const updateDeliveryChallan = async (
 };
 
 export const deleteDeliveryChallan = async (currentUser: User, dcId: string): Promise<void> => {
+    if (!hasPermission(currentUser.role, 'DELETE_DC')) {
+        throw new Error('You do not have permission to delete delivery challans');
+    }
+    const { data: dc } = await supabase.from('delivery_challans').select('status').eq('id', dcId).single();
+    if (dc?.status === 'BILLED') throw new Error('Cannot delete a billed Delivery Challan.');
+
     const { error } = await supabase
         .from('delivery_challans')
         .delete()
@@ -185,11 +215,11 @@ export const uploadDriverPhoto = async (
     const path = `driver-photos/${currentUser.company_id}/${Date.now()}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
-        .from('attachments')
+        .from('ATTACHMENTS')
         .upload(path, file, { upsert: false });
 
     if (uploadError) throw new Error(uploadError.message);
 
-    const { data: urlData } = supabase.storage.from('attachments').getPublicUrl(path);
+    const { data: urlData } = supabase.storage.from('ATTACHMENTS').getPublicUrl(path);
     return urlData.publicUrl;
 };

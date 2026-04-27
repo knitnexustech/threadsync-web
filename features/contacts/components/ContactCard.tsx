@@ -44,71 +44,56 @@ export const ContactCard: React.FC<ContactCardProps> = ({
             isInvited ? 'border-amber-100' :
                         'border-gray-100'
         }`}>
-            <div className="flex items-start gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-3">
 
-                {/* Avatar */}
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${
-                    isLinked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                }`}>
-                    {initials || '?'}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                        <p className="font-black text-gray-900 text-sm truncate">{contact.name}</p>
-
-                        {isLinked && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 bg-green-100 text-green-700 rounded-full uppercase tracking-widest">
-                                On Kramiz ✓
-                            </span>
-                        )}
-                        {isInvited && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full uppercase tracking-widest">
-                                Invited
-                            </span>
-                        )}
+                <div className="flex items-start gap-3 flex-1 min-w-0 w-full">
+                    {/* Avatar */}
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${
+                        isLinked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                        {initials || '?'}
                     </div>
 
-                    {/* Meta row */}
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-400 font-medium">
-                        {contact.gst_number && (
-                            <span className="font-mono tracking-wider">{contact.gst_number}</span>
-                        )}
-                        {contact.phone && <span>📞 {contact.phone}</span>}
-                        {contact.state && <span>📍 {contact.state}{contact.pincode ? ` — ${contact.pincode}` : ''}</span>}
-                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                            <p className="font-black text-gray-900 text-sm truncate">{contact.name}</p>
 
-                    {contact.address && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">{contact.address}</p>
-                    )}
-                    {contact.notes && (
-                        <p className="text-xs text-gray-400 italic mt-0.5 truncate">{contact.notes}</p>
-                    )}
+                            {isLinked && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 bg-green-100 text-green-700 rounded-full uppercase tracking-widest">
+                                    On Kramiz ✓
+                                </span>
+                            )}
+                            {isInvited && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full uppercase tracking-widest">
+                                    Invited
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Meta row */}
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-400 font-medium">
+                            {contact.gst_number && (
+                                <span className="font-mono tracking-wider">{contact.gst_number}</span>
+                            )}
+                            {contact.phone && <span className="whitespace-nowrap">📞 {contact.phone}</span>}
+                            {contact.state && <span className="whitespace-nowrap">📍 {contact.state}{contact.pincode ? ` — ${contact.pincode}` : ''}</span>}
+                        </div>
+
+                        {contact.address && (
+                            <p className="text-xs text-gray-400 mt-0.5 break-words line-clamp-2">{contact.address}</p>
+                        )}
+                        {contact.notes && (
+                            <p className="text-xs text-gray-400 italic mt-0.5 truncate">{contact.notes}</p>
+                        )}
+                    </div>
                 </div>
 
                 {/* Actions (admin only) */}
                 {canManage && (
-                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                        {/* Primary action */}
-                        {isLinked ? (
-                            <button
-                                onClick={() => onConnect(contact)}
-                                className="px-3 py-1.5 bg-green-600 text-white text-xs font-black rounded-lg hover:bg-green-700 transition-all whitespace-nowrap"
-                            >
-                                Connect →
-                            </button>
-                        ) : contact.phone ? (
-                            <button
-                                onClick={() => onInvite(contact)}
-                                className="px-3 py-1.5 bg-[#25D366] text-white text-xs font-black rounded-lg hover:bg-[#128C7E] transition-all whitespace-nowrap"
-                            >
-                                {isInvited ? 'Resend Invite' : 'Invite to Kramiz'}
-                            </button>
-                        ) : null}
-
-                        {/* Edit / Delete */}
-                        <div className="flex gap-1">
+                    <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-start sm:items-end gap-2 sm:gap-1.5 flex-shrink-0 w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t border-gray-100 sm:border-0">
+                        <div className="flex-1 sm:hidden"></div> {/* Spacer on mobile */}
+                        <div className="flex gap-1 order-2 sm:order-1">
                             <button
                                 onClick={() => onEdit(contact)}
                                 className="p-1.5 text-gray-400 hover:text-[#008069] hover:bg-green-50 rounded-lg transition-all"
@@ -128,6 +113,23 @@ export const ContactCard: React.FC<ContactCardProps> = ({
                                 </svg>
                             </button>
                         </div>
+                        
+                        {/* Primary action */}
+                        {isLinked ? (
+                            <button
+                                onClick={() => onConnect(contact)}
+                                className="px-3 py-1.5 bg-green-600 text-white text-xs font-black rounded-lg hover:bg-green-700 transition-all whitespace-nowrap order-1 sm:order-2"
+                            >
+                                Connect →
+                            </button>
+                        ) : contact.phone ? (
+                            <button
+                                onClick={() => onInvite(contact)}
+                                className="px-3 py-1.5 bg-[#25D366] text-white text-xs font-black rounded-lg hover:bg-[#128C7E] transition-all whitespace-nowrap order-1 sm:order-2"
+                            >
+                                {isInvited ? 'Resend Invite' : 'Invite to Kramiz'}
+                            </button>
+                        ) : null}
                     </div>
                 )}
             </div>

@@ -11,47 +11,40 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, Order, hasPermission } from '../../types';
 import { api } from '../../supabaseAPI';
 import { SubScreenHeader, EmptyState, StatusBadge } from './shared';
+import { OrderFinancialOverview } from './OrderFinancialOverview';
+import { QuickOrderForm } from './components/QuickOrderForm';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 interface AllOrdersScreenProps {
     currentUser: User;
-    onBack: () => void;
 }
 
 const inputCls = 'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all';
 
-export const AllOrdersScreen: React.FC<AllOrdersScreenProps> = ({ currentUser, onBack }) => {
+export const AllOrdersScreen: React.FC<AllOrdersScreenProps> = ({ currentUser }) => {
     const qc = useQueryClient();
+    const navigate = useNavigate();
+    const location = useLocation();
+    
     const [creating, setCreating] = useState(false);
-    const [orderNo, setOrderNo] = useState('');
-    const [styleNo, setStyleNo] = useState('');
 
     const { data: orders = [], isLoading } = useQuery<Order[]>({
         queryKey: ['orders', currentUser.id],
         queryFn: () => api.getOrders(currentUser),
     });
 
-    const createMutation = useMutation({
-        mutationFn: () => api.createOrder(currentUser, orderNo.trim(), styleNo.trim(), []),
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['orders'] });
-            setCreating(false);
-            setOrderNo('');
-            setStyleNo('');
-        },
-        onError: (e: any) => alert(e.message),
-    });
-
     const deleteMutation = useMutation({
         mutationFn: (id: string) => api.deleteOrder(currentUser, id),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['orders'] });
+            navigate('/dashboard/orders', { replace: true });
         },
         onError: (e: any) => alert(e.message),
     });
 
-    const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
+    const handleDelete = (e: React.MouseEvent, id: string, no: string) => {
         e.stopPropagation();
-        if (window.confirm(`Are you sure you want to delete order ${name}? This action cannot be undone.`)) {
+        if (window.confirm(`Permanently delete order ${no}?`)) {
             deleteMutation.mutate(id);
         }
     };
@@ -59,54 +52,11 @@ export const AllOrdersScreen: React.FC<AllOrdersScreenProps> = ({ currentUser, o
     const canCreate = hasPermission(currentUser.role, 'CREATE_ORDER');
     const canDelete = hasPermission(currentUser.role, 'DELETE_ORDER');
 
-    // ── Create form ────────────────────────────────────────────────────────────
-    if (creating) return (
-        <div className="flex flex-col h-full w-full bg-[#f0f2f5]">
-            <SubScreenHeader title="New Order" onBack={() => setCreating(false)} />
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4">
-                <div className="max-w-4xl mx-auto space-y-6 w-full">
-                    <div className="bg-white rounded-2xl p-5 md:p-8 border border-gray-100 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] space-y-5">
-                        <div>
-                        <label className="block text-[11px] text-gray-400 mb-1">Order Number</label>
-                        <input
-                            value={orderNo}
-                            onChange={e => setOrderNo(e.target.value)}
-                            placeholder="e.g. PO-2024-001"
-                            className={inputCls}
-                            autoFocus
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-[11px] text-gray-400 mb-1">Style Number</label>
-                        <input
-                            value={styleNo}
-                            onChange={e => setStyleNo(e.target.value)}
-                            placeholder="e.g. STY-BLUE-42"
-                            className={inputCls}
-                        />
-                    </div>
-                    <p className="text-[11px] text-gray-400 leading-relaxed">
-                        An Overview chat will be created automatically after the order is saved.
-                    </p>
-                    <button
-                        onClick={() => createMutation.mutate()}
-                        disabled={!orderNo.trim() || !styleNo.trim() || createMutation.isPending}
-                        className="w-full py-3 bg-[#008069] text-white rounded-xl font-medium shadow-sm hover:bg-[#006a57] disabled:opacity-40 transition-all"
-                    >
-                        {createMutation.isPending ? 'Creating…' : 'Create Order'}
-                    </button>
-                </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    // ── List ───────────────────────────────────────────────────────────────────
-    return (
+    const OrderList = () => (
         <div className="flex flex-col h-full w-full bg-[#f0f2f5]">
             <SubScreenHeader
-                title="My Orders"
-                onBack={onBack}
+                title="All Orders"
+                onBack={() => navigate('/dashboard')}
             />
             <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-20">
                 <div className="max-w-4xl mx-auto space-y-6 w-full">
@@ -119,6 +69,7 @@ export const AllOrdersScreen: React.FC<AllOrdersScreenProps> = ({ currentUser, o
                         {orders.map(order => (
                             <div
                                 key={order.id}
+                                onClick={() => navigate(`/dashboard/orders/${order.id}`)}
                                 className="bg-white p-4 md:p-6 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer group"
                             >
                                 <div className="flex items-center gap-4 flex-1">
@@ -149,6 +100,46 @@ export const AllOrdersScreen: React.FC<AllOrdersScreenProps> = ({ currentUser, o
                     )}
                 </div>
             </div>
+
+            {canCreate && !creating && (
+                <div className="fixed bottom-[84px] right-4 md:hidden z-20">
+                    <button
+                        onClick={() => setCreating(true)}
+                        className="w-14 h-14 bg-[#008069] text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg hover:bg-[#006a57] transition-transform active:scale-95"
+                    >
+                        +
+                    </button>
+                </div>
+            )}
         </div>
+    );
+
+    const OrderDetail = () => {
+        const orderId = location.pathname.split('/').pop();
+        const viewingOrder = orders.find(o => o.id === orderId);
+        if (!viewingOrder) return <div className="p-10 text-center text-gray-400">Order not found.</div>;
+        
+        return (
+            <OrderFinancialOverview 
+                currentUser={currentUser} 
+                order={viewingOrder} 
+                onBack={() => navigate('/dashboard/orders')} 
+            />
+        );
+    };
+
+    return (
+        <>
+            <Routes>
+                <Route path="/" element={<OrderList />} />
+                <Route path="/:orderId" element={<OrderDetail />} />
+            </Routes>
+            {creating && (
+                <QuickOrderForm
+                    currentUser={currentUser}
+                    onClose={() => setCreating(false)}
+                />
+            )}
+        </>
     );
 };

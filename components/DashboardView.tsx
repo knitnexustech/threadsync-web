@@ -6,18 +6,19 @@
  *   Desktop — left list (fixed 288px) + right detail fills the rest
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { User, Order, DeliveryChallan, InwardChallan, Invoice } from '../types';
 import { api } from '../supabaseAPI';
 
 import { AllOrdersScreen }         from '../features/orders/AllOrdersScreen';
 import { AllDCsScreen }            from '../features/delivery-challan/AllDCsScreen';
 import { AllInwardChallansScreen } from '../features/inward-challan/AllInwardChallansScreen';
-import { AllInvoicesScreen }       from '../features/invoices/AllInvoicesScreen';
+import { AllSalesInvoicesScreen }    from '../features/invoices/AllSalesInvoicesScreen';
+import { AllPurchaseInvoicesScreen } from '../features/invoices/AllPurchaseInvoicesScreen';
 
 interface DashboardViewProps { currentUser: User; }
-type Screen = null | 'ORDERS' | 'DCS' | 'ICS' | 'S_INVOICES' | 'P_INVOICES';
 
 // ── Empty right-panel (desktop placeholder) ─────────────────────────────────
 const RightPlaceholder: React.FC = () => (
@@ -29,7 +30,12 @@ const RightPlaceholder: React.FC = () => (
 );
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => {
-    const [screen, setScreen] = useState<Screen>(null);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const isRoot = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
+    const pathSegments = location.pathname.split('/').filter(Boolean);
+    const activeRoute = pathSegments[1] || ''; // 'orders', 'dcs', etc.
 
     const { data: orders = [] }      = useQuery<Order[]>         ({ queryKey: ['orders',            currentUser.id],         queryFn: () => api.getOrders(currentUser) });
     const { data: dcs = [] }         = useQuery<DeliveryChallan[]>({ queryKey: ['dcs',               currentUser.company_id], queryFn: () => api.getDCsForCompany(currentUser) });
@@ -38,15 +44,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
     const { data: pInvoices = [] }   = useQuery<Invoice[]>        ({ queryKey: ['purchase_invoices', currentUser.company_id], queryFn: () => api.getPurchaseInvoices(currentUser) });
 
     const rows = [
-        { key: 'ORDERS',     icon: '📦', iconBg: 'bg-green-50  border-green-100',  label: 'All Orders',        count: orders.length,    subtitle: 'Track production' },
-        { key: 'DCS',        icon: '🚚', iconBg: 'bg-orange-50 border-orange-100', label: 'Delivery Challans', count: dcs.length,       subtitle: 'Outward dispatches' },
-        { key: 'ICS',        icon: '📥', iconBg: 'bg-teal-50   border-teal-100',   label: 'Inward Challans',   count: ics.length,       subtitle: 'Goods received' },
-        { key: 'S_INVOICES', icon: '🧾', iconBg: 'bg-indigo-50 border-indigo-100', label: 'Sales Invoices',    count: sInvoices.length,  subtitle: 'Bills issued' },
-        { key: 'P_INVOICES', icon: '💸', iconBg: 'bg-orange-50 border-orange-100', label: 'Purchase Invoices', count: pInvoices.length,  subtitle: 'Bills received' },
-    ] as const;
+        { key: 'orders',     icon: '📦', iconBg: 'bg-green-50  border-green-100',  label: 'All Orders',        count: orders.length,    subtitle: 'Overview of all orders' },
+        { key: 'dcs',        icon: '🚚', iconBg: 'bg-orange-50 border-orange-100', label: 'Delivery Challans', count: dcs.length,       subtitle: 'Outward dispatches' },
+        { key: 'ics',        icon: '📥', iconBg: 'bg-teal-50   border-teal-100',   label: 'Inward Challans',   count: ics.length,       subtitle: 'Goods received' },
+        (currentUser.role === 'ADMIN') && { key: 'sales_invoices', icon: '🧾', iconBg: 'bg-indigo-50 border-indigo-100', label: 'Sales Invoices',    count: sInvoices.length,  subtitle: 'Bills issued' },
+        { key: 'purchase_invoices', icon: '💸', iconBg: 'bg-orange-50 border-orange-100', label: 'Purchase Invoices', count: pInvoices.length,  subtitle: 'Bills received' },
+    ].filter(Boolean) as any[];
 
-    const back = () => setScreen(null);
-    const screenProps = { currentUser, onBack: back };
+    const screenProps = { currentUser };
 
     const ListPanel = (
         <div className="flex flex-col h-full w-full bg-[#f0f2f5]">
@@ -66,9 +71,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
                     {rows.map(row => (
                         <button
                             key={row.key}
-                            onClick={() => setScreen(row.key as Screen)}
+                            onClick={() => navigate(`/dashboard/${row.key}`)}
                             className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left
-                                ${screen === row.key
+                                ${activeRoute === row.key
                                     ? 'bg-green-50 border-l-[3px] border-l-[#008069]'
                                     : 'hover:bg-gray-50 active:bg-gray-100'
                                 }`}
@@ -77,7 +82,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
                                 {row.icon}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className={`text-[14px] ${screen === row.key ? 'text-[#008069] font-medium' : 'text-gray-800'}`}>
+                                <p className={`text-[14px] ${activeRoute === row.key ? 'text-[#008069] font-medium' : 'text-gray-800'}`}>
                                     {row.label}
                                 </p>
                                 <p className="text-[11px] text-gray-400">{row.subtitle}</p>
@@ -98,21 +103,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
     );
 
     const RightContent = () => {
-        if (!screen) return <RightPlaceholder />;
-        if (screen === 'ORDERS')     return <AllOrdersScreen          {...screenProps} />;
-        if (screen === 'DCS')        return <AllDCsScreen             {...screenProps} />;
-        if (screen === 'ICS')        return <AllInwardChallansScreen  {...screenProps} />;
-        if (screen === 'S_INVOICES') return <AllInvoicesScreen        {...screenProps} type="SALES" />;
-        if (screen === 'P_INVOICES') return <AllInvoicesScreen        {...screenProps} type="PURCHASE" />;
-        return null;
+        return (
+            <Routes>
+                <Route path="/" element={<RightPlaceholder />} />
+                <Route path="/orders/*" element={<AllOrdersScreen {...screenProps} />} />
+                <Route path="/dcs/*" element={<AllDCsScreen {...screenProps} />} />
+                <Route path="/ics/*" element={<AllInwardChallansScreen {...screenProps} />} />
+                <Route path="/sales_invoices/*" element={<AllSalesInvoicesScreen {...screenProps} />} />
+                <Route path="/purchase_invoices/*" element={<AllPurchaseInvoicesScreen {...screenProps} />} />
+            </Routes>
+        );
     };
 
     return (
         <div className="flex h-full w-full overflow-hidden">
-            <div className={`h-full flex-shrink-0 border-r border-gray-200 bg-[#f0f2f5] ${screen ? 'hidden md:block md:w-72 lg:w-80' : 'block w-full md:w-72 lg:w-80'}`}>
+            <div className={`h-full flex-shrink-0 border-r border-gray-200 bg-[#f0f2f5] ${!isRoot ? 'hidden md:block md:w-72 lg:w-80' : 'block w-full md:w-72 lg:w-80'}`}>
                 {ListPanel}
             </div>
-            <div className={`h-full overflow-hidden ${screen ? 'block flex-1' : 'hidden md:block md:flex-1'}`}>
+            <div className={`h-full overflow-hidden ${!isRoot ? 'block flex-1' : 'hidden md:block md:flex-1'}`}>
                 <RightContent />
             </div>
         </div>

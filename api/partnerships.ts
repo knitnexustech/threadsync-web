@@ -46,8 +46,8 @@ export const sendPartnershipRequest = async (
     currentUser: User,
     targetCompanyId: string
 ): Promise<Partnership> => {
-    if (!hasPermission(currentUser.role, 'MANAGE_PARTNERSHIPS')) {
-        throw new Error('Only Admins and Senior members can send partnership requests');
+    if (!hasPermission(currentUser.role, 'SEND_PARTNERSHIP_INVITE')) {
+        throw new Error('You do not have permission to send partnership requests');
     }
     if (targetCompanyId === currentUser.company_id) {
         throw new Error('You cannot partner with your own company');
@@ -74,6 +74,9 @@ export const acceptPartnershipRequest = async (
     currentUser: User,
     partnershipId: string
 ): Promise<Partnership> => {
+    if (!hasPermission(currentUser.role, 'ACCEPT_PARTNERSHIP_INVITE')) {
+        throw new Error('You do not have permission to accept partnership requests');
+    }
     const { data, error } = await supabase
         .from('partnerships')
         .update({ status: 'ACCEPTED' })

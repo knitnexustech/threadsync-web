@@ -143,7 +143,7 @@ export const DCForm: React.FC<DCFormProps> = ({ currentUser, channelId, initialD
     const inputCls = 'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all';
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-[2px]" onClick={onClose}>
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 pb-0 sm:pb-4 bg-black/60 backdrop-blur-[2px]" onClick={onClose}>
             <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden max-h-[85dvh] flex flex-col animate-in slide-in-from-bottom-4 duration-300" onClick={e => e.stopPropagation()}>
 
                 {/* Header: Fixed */}

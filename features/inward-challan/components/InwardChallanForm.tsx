@@ -69,7 +69,7 @@ export const InwardChallanForm: React.FC<InwardChallanFormProps> = ({
     // --- Auto-populate if linked to a DC ---
     React.useEffect(() => {
         if (linkedDCId && !initialData) {
-            api.getDeliveryChallanById(linkedDCId).then(dc => {
+            api.getDCById(linkedDCId).then(dc => {
                 if (dc) {
                     setOrderId(dc.order_number || '');
                     setRefOrderNumber(dc.dc_number);

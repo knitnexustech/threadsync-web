@@ -24,8 +24,9 @@ import { QuickSalesInvoiceForm }    from '../features/invoices/components/QuickS
 import { QuickPurchaseInvoiceForm } from '../features/invoices/components/QuickPurchaseInvoiceForm';
 import { DCForm }                   from '../features/delivery-challan/components/DCForm';
 import { InwardChallanForm }        from '../features/inward-challan/components/InwardChallanForm';
+import { SimpleExpenseForm }      from '../features/invoices/components/SimpleExpenseForm';
 
-type ActiveForm = null | 'ORDER' | 'P_INV' | 'S_INV' | 'DC' | 'IC';
+type ActiveForm = null | 'ORDER' | 'P_INV' | 'S_INV' | 'DC' | 'IC' | 'EXPENSE';
 
 interface FABProps {
     currentUser: User;
@@ -47,17 +48,20 @@ export const FloatingActionButton: React.FC<FABProps> = ({ currentUser, visible 
 
     if (!visible) return null;
 
-    const canOrder   = hasPermission(currentUser.role, 'CREATE_ORDER');
-    const canDC      = hasPermission(currentUser.role, 'CREATE_DC');
-    const canIC      = hasPermission(currentUser.role, 'CREATE_IC');
-    const canInvoice = hasPermission(currentUser.role, 'CREATE_INVOICE');
+    const canOrder      = hasPermission(currentUser.role, 'CREATE_ORDER');
+    const canDC         = hasPermission(currentUser.role, 'CREATE_DC');
+    const canIC         = hasPermission(currentUser.role, 'CREATE_IC');
+    const canSalesInv   = hasPermission(currentUser.role, 'CREATE_SALES_INVOICE');
+    const canPurchaseInv = hasPermission(currentUser.role, 'CREATE_PURCHASE_INVOICE');
+    const canExpense    = hasPermission(currentUser.role, 'CREATE_SIMPLE_EXPENSE');
 
     const actions = [
-        canOrder   && { key: 'ORDER', icon: '📦', label: 'My Order',         color: 'bg-[#008069]' },
-        canInvoice && { key: 'P_INV', icon: '📥', label: 'New Purchase Inv',  color: 'bg-orange-600' },
-        canInvoice && { key: 'S_INV', icon: '🧾', label: 'New Sales Inv',     color: 'bg-indigo-600' },
-        canDC      && { key: 'DC',    icon: '🚚', label: 'New Delivery Challan', color: 'bg-blue-600' },
-        canIC      && { key: 'IC',    icon: '📦', label: 'New Inward Challan',   color: 'bg-teal-600' },
+        canOrder       && { key: 'ORDER',   icon: '📦', label: 'Add New Order',         color: 'bg-[#008069]' },
+        canPurchaseInv && { key: 'P_INV',   icon: '📥', label: 'Record Vendor Bill',    color: 'bg-orange-800' },
+        canExpense     && { key: 'EXPENSE', icon: '💸', label: 'Record Quick Expense',   color: 'bg-cyan-600' },
+        canSalesInv    && { key: 'S_INV',   icon: '🧾', label: 'Add New Sales Inv',     color: 'bg-indigo-600' },
+        canDC          && { key: 'DC',      icon: '🚚', label: 'Add New Delivery Challan', color: 'bg-blue-600' },
+        canIC          && { key: 'IC',      icon: '📦', label: 'Add New Inward Challan',   color: 'bg-teal-600' },
     ].filter(Boolean) as { key: string; icon: string; label: string; color: string }[];
 
     if (!actions.length) return null; // No permissions
@@ -134,6 +138,9 @@ export const FloatingActionButton: React.FC<FABProps> = ({ currentUser, visible 
                     }}
                     onClose={() => setActiveForm(null)}
                 />
+            )}
+            {activeForm === 'EXPENSE' && (
+                <SimpleExpenseForm currentUser={currentUser} onClose={() => setActiveForm(null)} />
             )}
         </>
     );

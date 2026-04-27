@@ -33,16 +33,16 @@ interface AddContactModalProps {
 
 const Field: React.FC<{ label: string; children: React.ReactNode; hint?: string }> = ({ label, children, hint }) => (
     <div>
-        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">{label}</label>
+        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</label>
         {children}
-        {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+        {hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
     </div>
 );
 
 const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { hasError?: boolean }> = ({ hasError, className = '', ...props }) => (
     <input
         {...props}
-        className={`w-full px-4 py-2.5 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ${
+        className={`w-full px-4 py-2 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ${
             hasError ? 'border-red-300 focus:ring-red-400' : 'border-gray-200 focus:ring-[#008069]'
         } ${className}`}
     />
@@ -56,8 +56,8 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
     const set = (patch: Partial<ContactForm>) => setForm(f => ({ ...f, ...patch }));
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 overflow-hidden">
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 pb-0 sm:pb-4 bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 overflow-hidden">
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -77,7 +77,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                 </div>
 
                 {/* Form */}
-                <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="px-6 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
 
                     <Field label="Company Name *">
                         <Input
@@ -112,7 +112,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
 
                     <Field label="Phone Number" hint="Used for WhatsApp invite — include country code if outside India">
                         <div className="flex">
-                            <span className="px-3 py-2.5 bg-gray-100 border border-r-0 border-gray-200 rounded-l-xl text-sm text-gray-500 font-bold">+91</span>
+                            <span className="px-3 py-2 bg-gray-100 border border-r-0 border-gray-200 rounded-l-xl text-sm text-gray-500 font-bold">+91</span>
                             <Input
                                 value={form.phone}
                                 onChange={e => {
@@ -160,7 +160,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                             onChange={e => set({ notes: e.target.value })}
                             placeholder="e.g. Main yarn supplier, contact Ravi for orders"
                             rows={2}
-                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all resize-none"
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all resize-none"
                         />
                     </Field>
                 </div>

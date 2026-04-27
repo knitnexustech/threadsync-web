@@ -28,9 +28,10 @@ const generateSalesInvoiceNumber = async (companyId: string): Promise<string> =>
     return `${prefix}-${seq}`;
 };
 
-const calculateTotals = (items: InvoiceItem[], gstRate?: GSTRate) => {
+const calculateTotals = (items: InvoiceItem[], gstRate?: GSTRate, gstType?: GSTType) => {
     const subtotal   = items.reduce((sum, it) => sum + it.amount, 0);
-    const gst_amount = gstRate ? parseFloat(((subtotal * gstRate) / 100).toFixed(2)) : 0;
+    const isNoGST    = gstType === 'NONE';
+    const gst_amount = isNoGST ? 0 : (gstRate ? parseFloat(((subtotal * gstRate) / 100).toFixed(2)) : 0);
     return { subtotal, gst_amount, total_amount: parseFloat((subtotal + gst_amount).toFixed(2)) };
 };
 
@@ -61,29 +62,67 @@ export const createSalesInvoice = async (
         created_at?:        string;
     }
 ): Promise<Invoice> => {
-    if (!hasPermission(currentUser.role, 'CREATE_INVOICE')) {
-        throw new Error('You do not have permission to create invoices');
+    if (!hasPermission(currentUser.role, 'CREATE_SALES_INVOICE')) {
+        throw new Error('You do not have permission to create sales invoices');
     }
     const inv_no = params.invoice_number || await generateSalesInvoiceNumber(currentUser.company_id);
-    const { subtotal, gst_amount, total_amount } = calculateTotals(params.items, params.gst_rate);
+    const { subtotal, gst_amount, total_amount } = calculateTotals(params.items, params.gst_rate, params.gst_type);
 
     const { data, error } = await supabase
         .from('sales_invoices')
         .insert({
             invoice_number:    inv_no,
             seller_company_id: params.seller_company_id || currentUser.company_id,
+            buyer_company_id:  params.buyer_company_id,
+            buyer_contact_id:  params.buyer_contact_id,
+            order_id:          params.order_id,
+            items:             params.items,
+            gst_type:          params.gst_type === 'NONE' ? null : params.gst_type,
+            gst_rate:          params.gst_type === 'NONE' ? null : params.gst_rate,
+            gst_amount,
+            subtotal,
+            total_amount,
+            due_date:          params.due_date,
+            notes:             params.notes,
             created_by:        currentUser.id,
             linked_dc_ids:     params.linked_dc_ids ?? [],
-            subtotal,
-            gst_amount,
-            total_amount,
-            status:            'DRAFT',
-            ...params,
         })
         .select(INVOICE_SELECT)
         .single();
 
     if (error) throw new Error(error.message);
+
+    // If there are linked DCs, mark them as BILLED
+    if (params.linked_dc_ids?.length) {
+        await supabase
+            .from('delivery_challans')
+            .update({ status: 'BILLED' })
+            .in('id', params.linked_dc_ids);
+    }
+
+    // [Auto-Mirror: Option 1] Automatically copy this invoice to the buyer's purchase invoices if they are a Kramiz partner
+    if (params.buyer_company_id) {
+        const { error: mirrorError } = await supabase
+            .from('purchase_invoices')
+            .insert({
+                invoice_number:    inv_no,
+                seller_company_id: params.seller_company_id || currentUser.company_id,
+                buyer_company_id:  params.buyer_company_id, // The UUID of the partner
+                order_id:          params.order_id,
+                items:             params.items,
+                gst_type:          params.gst_type === 'NONE' ? null : params.gst_type,
+                gst_rate:          params.gst_type === 'NONE' ? null : params.gst_rate,
+                gst_amount,
+                subtotal,
+                total_amount,
+                due_date:          params.due_date,
+                notes:             params.notes,
+                created_by:        currentUser.id, // Vendor created it
+            });
+            
+        if (mirrorError) console.error("Auto-mirror failed:", mirrorError.message);
+    }
+
     return data as Invoice;
 };
 
@@ -115,11 +154,20 @@ export const updateSalesInvoice = async (
         created_at:        string;
     }>
 ): Promise<Invoice> => {
-    let finalUpdates: any = { ...updates };
-    if (updates.items || updates.gst_rate !== undefined) {
-        // Recalculate totals if items or GST rate changed
-        // We'd need the full items list if only one item changed, 
-        // but for now we assume updates.items contains the full list.
+    if (!hasPermission(currentUser.role, 'EDIT_SALES_INVOICE')) {
+        throw new Error('You do not have permission to edit sales invoices');
+    }
+    let finalUpdates: any = { 
+        ...updates,
+        gst_type: updates.gst_type === 'NONE' ? null : updates.gst_type,
+        gst_rate: updates.gst_type === 'NONE' ? null : updates.gst_rate,
+    };
+
+    if (updates.items) {
+        const { subtotal, gst_amount, total_amount } = calculateTotals(updates.items, updates.gst_rate, updates.gst_type);
+        finalUpdates.subtotal = subtotal;
+        finalUpdates.gst_amount = gst_amount;
+        finalUpdates.total_amount = total_amount;
     }
 
     const { data, error } = await supabase
@@ -131,10 +179,43 @@ export const updateSalesInvoice = async (
         .single();
 
     if (error) throw new Error(error.message);
+
+    // [Auto-Mirror Update] Push changes to the mirrored purchase invoice
+    if (data && data.buyer_company_id) {
+        const { error: mirrorUpdateError } = await supabase
+            .from('purchase_invoices')
+            .update({
+                buyer_company_id:  data.buyer_company_id, // in case it changed
+                order_id:          data.order_id,
+                items:             data.items,
+                gst_type:          data.gst_type,
+                gst_rate:          data.gst_rate,
+                gst_amount:        data.gst_amount,
+                subtotal:          data.subtotal,
+                total_amount:      data.total_amount,
+                due_date:          data.due_date,
+                notes:             data.notes,
+            })
+            .eq('invoice_number', data.invoice_number)
+            .eq('seller_company_id', data.seller_company_id);
+            
+        if (mirrorUpdateError) console.error("Auto-mirror update failed:", mirrorUpdateError.message);
+    }
+
     return data as Invoice;
 };
 
 export const deleteSalesInvoice = async (currentUser: User, invoiceId: string): Promise<void> => {
+    if (!hasPermission(currentUser.role, 'DELETE_SALES_INVOICE')) {
+        throw new Error('You do not have permission to delete sales invoices');
+    }
+    // Fetch the invoice details first to handle mirrors and linked DCs
+    const { data: invoice } = await supabase
+        .from('sales_invoices')
+        .select('invoice_number, linked_dc_ids')
+        .eq('id', invoiceId)
+        .single();
+
     const { error } = await supabase
         .from('sales_invoices')
         .delete()
@@ -142,4 +223,33 @@ export const deleteSalesInvoice = async (currentUser: User, invoiceId: string): 
         .eq('seller_company_id', currentUser.company_id);
 
     if (error) throw new Error(error.message);
+
+    // [Revert Logistics] Revert linked Delivery Challans back to COMPLETED status so they can be billed again
+    if (invoice?.linked_dc_ids && invoice.linked_dc_ids.length > 0) {
+        await supabase
+            .from('delivery_challans')
+            .update({ status: 'COMPLETED' })
+            .in('id', invoice.linked_dc_ids);
+    }
+
+    // [Auto-Mirror Delete] Remove the mirrored purchase invoice
+    if (invoice?.invoice_number) {
+        await supabase
+            .from('purchase_invoices')
+            .delete()
+            .eq('invoice_number', invoice.invoice_number)
+            .eq('seller_company_id', currentUser.company_id);
+    }
+};
+
+export const getSalesInvoicesForOrder = async (orderId: string, orderNumber?: string): Promise<Invoice[]> => {
+    // Sales Invoices use order_id (UUID)
+    const { data, error } = await supabase
+        .from('sales_invoices')
+        .select(INVOICE_SELECT)
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return (data || []) as Invoice[];
 };

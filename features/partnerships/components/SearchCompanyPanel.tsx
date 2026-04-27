@@ -45,7 +45,7 @@ export const SearchCompanyPanel: React.FC<SearchCompanyPanelProps> = ({
             </p>
 
             {/* Search bar */}
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
                 <input
                     type="text"
                     value={searchQuery}
@@ -55,25 +55,27 @@ export const SearchCompanyPanel: React.FC<SearchCompanyPanelProps> = ({
                     className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono tracking-wider uppercase focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all"
                     maxLength={20}
                 />
-                {searchQuery && (
+                <div className="flex gap-2">
+                    {searchQuery && (
+                        <button
+                            onClick={onClear}
+                            className="px-3 py-3 text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 rounded-xl border border-gray-100 sm:border-transparent sm:bg-transparent"
+                            title="Clear"
+                        >
+                            ✕
+                        </button>
+                    )}
                     <button
-                        onClick={onClear}
-                        className="px-3 py-3 text-gray-400 hover:text-gray-600 transition-colors"
-                        title="Clear"
+                        onClick={onSearch}
+                        disabled={!searchQuery.trim() || isSearching}
+                        className="px-6 py-3 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-40 transition-all flex justify-center items-center gap-2 flex-1 sm:flex-none"
                     >
-                        ✕
+                        {isSearching ? (
+                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                        ) : '🔍'}
+                        Search
                     </button>
-                )}
-                <button
-                    onClick={onSearch}
-                    disabled={!searchQuery.trim() || isSearching}
-                    className="px-6 py-3 bg-[#008069] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#006a57] disabled:opacity-40 transition-all flex items-center gap-2"
-                >
-                    {isSearching ? (
-                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-                    ) : '🔍'}
-                    Search
-                </button>
+                </div>
             </div>
 
             {/* Hint */}
