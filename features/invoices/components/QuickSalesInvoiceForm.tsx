@@ -14,10 +14,11 @@ import { api } from '../../../supabaseAPI';
 interface QuickSalesInvoiceFormProps {
     currentUser: User;
     initialData?: Invoice;
+    onCreated?:  (id: string, num: string) => void;
     onClose:     () => void;
 }
 
-export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ currentUser, initialData, onClose }) => {
+export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ currentUser, initialData, onCreated, onClose }) => {
     const qc = useQueryClient();
     
     // --- State ---
@@ -163,6 +164,7 @@ export const QuickSalesInvoiceForm: React.FC<QuickSalesInvoiceFormProps> = ({ cu
             }
 
             qc.invalidateQueries({ queryKey: ['sales_invoices'] });
+            if (onCreated) onCreated(initialData ? initialData.id : (await api.getSalesInvoices(currentUser)).find(inv => inv.invoice_number === invoiceData.invoice_number)?.id || 'new', invoiceData.invoice_number || 'INV');
             alert(`Sales Invoice ${initialData ? 'updated' : 'created'} successfully!`);
             onClose();
         } catch (e: any) {

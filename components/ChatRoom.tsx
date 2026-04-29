@@ -8,6 +8,12 @@ import { useChat } from '../hooks/useChat';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isNative, shareFile, shareContent } from '../capacitorUtils';
 import { KramizSharePopup } from './KramizSharePopup';
+import { DCForm } from '@/features/delivery-challan/components/DCForm';
+import { InwardChallanForm } from '@/features/inward-challan/components/InwardChallanForm';
+import { QuickSalesInvoiceForm } from '@/features/invoices/components/QuickSalesInvoiceForm';
+import { QuickPurchaseInvoiceForm } from '@/features/invoices/components/QuickPurchaseInvoiceForm';
+import { SimpleExpenseForm } from '@/features/invoices/components/SimpleExpenseForm';
+import { ChallanDetailView } from '@/features/delivery-challan/components/ChallanDetailView';
 
 interface ChatRoomProps {
     currentUser: User;
@@ -55,12 +61,45 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const photoInputRef = useRef<HTMLInputElement>(null);
+
+    // Document Modal states
+    const [showDCForm, setShowDCForm] = useState(false);
+    const [showICForm, setShowICForm] = useState(false);
+    const [showSalesInvForm, setShowSalesInvForm] = useState(false);
+    const [showPurchaseInvForm, setShowPurchaseInvForm] = useState(false);
+    const [showExpenseForm, setShowExpenseForm] = useState(false);
+
+    // Document Viewing state
+    const [viewingDoc, setViewingDoc] = useState<{ type: 'DC' | 'IC' | 'SI' | 'PI' | 'EX', id: string, num: string } | null>(null);
+    const [docData, setDocData] = useState<any>(null);
+    const [loadingDoc, setLoadingDoc] = useState(false);
+
+    const handleViewDoc = async (type: 'DC' | 'IC' | 'SI' | 'PI' | 'EX', id: string, num: string) => {
+        setViewingDoc({ type, id, num });
+        setLoadingDoc(true);
+        try {
+            let data;
+            if (type === 'DC') data = await api.getDCById(id);
+            else if (type === 'IC') data = await api.getInwardChallanById(id);
+            // Invoices/Expenses fetch logic can be added here if needed
+            setDocData(data);
+        } catch (e) { console.error('Failed to fetch doc', e); }
+        finally { setLoadingDoc(false); }
+    };
 
     // ROLE-BASED PERMISSIONS
     const canAddMembers = hasPermission(currentUser.role, 'ADD_CHANNEL_MEMBER');
     const canDeleteGroup = hasPermission(currentUser.role, 'DELETE_CHANNEL');
     const canEditGroup = hasPermission(currentUser.role, 'EDIT_CHANNEL');
     const canRemoveMembers = hasPermission(currentUser.role, 'REMOVE_CHANNEL_MEMBER');
+
+    // Document Permissions
+    const canCreateDC = hasPermission(currentUser.role, 'CREATE_DC');
+    const canCreateIC = hasPermission(currentUser.role, 'CREATE_IC');
+    const canCreateSalesInv = hasPermission(currentUser.role, 'CREATE_SALES_INVOICE');
+    const canCreatePurchaseInv = hasPermission(currentUser.role, 'CREATE_PURCHASE_INVOICE');
+    const canCreateExpense = hasPermission(currentUser.role, 'CREATE_SIMPLE_EXPENSE');
 
     const [currentStatus, setCurrentStatus] = useState(channel.status);
 
@@ -298,6 +337,44 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
         if (content.startsWith('[AUDIO]')) {
             return <audio src={content.replace('[AUDIO]', '').trim()} controls className="w-full h-8 mt-2" />;
         }
+
+        // DOCUMENT CARDS
+        const isDC = content.startsWith('[DC]');
+        const isIC = content.startsWith('[IC]');
+        const isSI = content.startsWith('[SI]');
+        const isPI = content.startsWith('[PI]');
+        const isEX = content.startsWith('[EX]');
+
+        if (isDC || isIC || isSI || isPI || isEX) {
+            const parts = content.split('|');
+            const label = parts[0].replace(/\[DC\]|\[IC\]|\[SI\]|\[PI\]|\[EX\]/, '').trim();
+            const id = parts[1]?.trim() || '';
+            const type = isDC ? 'DC' : isIC ? 'IC' : isSI ? 'SI' : isPI ? 'PI' : 'EX';
+            const icon = isDC ? '🚚' : isIC ? '📥' : isSI ? '🧾' : isPI ? '💸' : '💰';
+            const typeLabel = isDC ? 'Delivery Plan' : isIC ? 'Inward Challan' : isSI ? 'Sales Invoice' : isPI ? 'Purchase Invoice' : 'Expense';
+            const colorClass = isDC ? 'bg-green-50 border-green-100 text-green-700' : 
+                              isIC ? 'bg-blue-50 border-blue-100 text-blue-700' :
+                              isSI ? 'bg-purple-50 border-purple-100 text-purple-700' :
+                              isPI ? 'bg-orange-50 border-orange-100 text-orange-700' :
+                              'bg-red-50 border-red-100 text-red-700';
+
+            return (
+                <div 
+                    onClick={() => handleViewDoc(type, id, label)}
+                    className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer hover:shadow-md transition-all active:scale-95 mt-1 ${colorClass}`}
+                >
+                    <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center text-2xl shadow-inner">
+                        {icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-0.5">{typeLabel}</p>
+                        <p className="text-sm font-bold truncate">{label}</p>
+                        <p className="text-[10px] font-medium opacity-50 mt-1">Tap to view details</p>
+                    </div>
+                </div>
+            );
+        }
+
         return <div className="text-gray-900 break-words">{content}</div>;
     };
 
@@ -491,15 +568,49 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
 
                 <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-2 relative safe-pb-deep border-t border-gray-200">
                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
+                    <input type="file" ref={photoInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" multiple />
                     <button type="button" onClick={() => setShowAttachMenu(!showAttachMenu)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-[#008069] hover:bg-white rounded-full transition-all">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     </button>
                     {showAttachMenu && (
-                        <div className="absolute bottom-16 left-4 bg-white shadow-2xl rounded-2xl p-2 z-50 border border-gray-100 animate-in slide-in-from-bottom-2 duration-200">
-                            <button onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
-                                <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-xl">📁</div>
-                                <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Gallery & Files</span><span className="text-[10px] text-gray-400">Images, PDFs, etc.</span></div>
+                        <div className="absolute bottom-16 left-4 bg-white shadow-2xl rounded-2xl p-2 z-50 border border-gray-100 animate-in slide-in-from-bottom-2 duration-200 w-64">
+                            <button onClick={() => { photoInputRef.current?.click(); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors border-b border-gray-50">
+                                <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Photos</span><span className="text-[10px] text-gray-400">Camera & Gallery</span></div>
                             </button>
+
+                            <button onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors border-b border-gray-50">
+                                <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Documents</span><span className="text-[10px] text-gray-400">PDFs, Docs, etc.</span></div>
+                            </button>
+
+                            {canCreateDC && (
+                                <button onClick={() => { setShowDCForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Delivery Challan</span><span className="text-[10px] text-gray-400">Create Outward DC</span></div>
+                                </button>
+                            )}
+
+                            {canCreateIC && (
+                                <button onClick={() => { setShowICForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Inward Challan</span><span className="text-[10px] text-gray-400">Record goods receipt</span></div>
+                                </button>
+                            )}
+
+                            {canCreateSalesInv && (
+                                <button onClick={() => { setShowSalesInvForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Sales Invoice</span><span className="text-[10px] text-gray-400">Bill your partner</span></div>
+                                </button>
+                            )}
+
+                            {canCreatePurchaseInv && (
+                                <button onClick={() => { setShowPurchaseInvForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Purchase Invoice</span><span className="text-[10px] text-gray-400">Record bill from partner</span></div>
+                                </button>
+                            )}
+
+                            {canCreateExpense && (
+                                <button onClick={() => { setShowExpenseForm(true); setShowAttachMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left rounded-xl transition-colors">
+                                    <div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Simple Expense</span><span className="text-[10px] text-gray-400">Quick spend record</span></div>
+                                </button>
+                            )}
                         </div>
                     )}
                     
@@ -626,6 +737,84 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, channel, order,
                         queryClient.invalidateQueries({ queryKey: ['channels'] });
                     }}
                 />
+            )}
+
+            {/* Document Forms */}
+            {showDCForm && (
+                <DCForm 
+                    currentUser={currentUser} 
+                    channelId={channel.id} 
+                    onCreated={(id, num) => {
+                        sendMessage(`[DC] Created Delivery Challan: ${num} | ${id}`);
+                        setShowDCForm(false);
+                        queryClient.invalidateQueries({ queryKey: ['dcs'] });
+                    }}
+                    onClose={() => setShowDCForm(false)}
+                />
+            )}
+
+            {showICForm && (
+                <InwardChallanForm
+                    currentUser={currentUser}
+                    channelId={channel.id}
+                    onCreated={(id, num) => {
+                        sendMessage(`[IC] Created Inward Challan: ${num} | ${id}`);
+                        setShowICForm(false);
+                        queryClient.invalidateQueries({ queryKey: ['inward_challans'] });
+                    }}
+                    onClose={() => setShowICForm(false)}
+                />
+            )}
+
+            {showSalesInvForm && (
+                <QuickSalesInvoiceForm
+                    currentUser={currentUser}
+                    onCreated={(id, num) => {
+                        sendMessage(`[SI] Created Sales Invoice: ${num} | ${id}`);
+                        setShowSalesInvForm(false);
+                    }}
+                    onClose={() => setShowSalesInvForm(false)}
+                />
+            )}
+
+            {showPurchaseInvForm && (
+                <QuickPurchaseInvoiceForm
+                    currentUser={currentUser}
+                    onCreated={(id, num) => {
+                        sendMessage(`[PI] Created Purchase Invoice: ${num} | ${id}`);
+                        setShowPurchaseInvForm(false);
+                    }}
+                    onClose={() => setShowPurchaseInvForm(false)}
+                />
+            )}
+
+            {showExpenseForm && (
+                <SimpleExpenseForm
+                    currentUser={currentUser}
+                    onCreated={(id, desc) => {
+                        sendMessage(`[EX] Recorded Expense: ${desc} | ${id}`);
+                        setShowExpenseForm(false);
+                    }}
+                    onClose={() => setShowExpenseForm(false)}
+                />
+            )}
+
+            {/* Document Detail Views */}
+            {viewingDoc && (viewingDoc.type === 'DC' || viewingDoc.type === 'IC') && docData && (
+                <ChallanDetailView 
+                    data={docData} 
+                    type={viewingDoc.type} 
+                    onClose={() => { setViewingDoc(null); setDocData(null); }} 
+                />
+            )}
+
+            {viewingDoc && loadingDoc && (
+                <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/20 backdrop-blur-sm">
+                    <div className="bg-white p-6 rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-95 duration-200">
+                        <div className="animate-spin rounded-full h-10 w-10 border-4 border-[#008069] border-t-transparent"></div>
+                        <p className="text-sm font-bold text-gray-700">Fetching Document...</p>
+                    </div>
+                </div>
             )}
         </div>
     );

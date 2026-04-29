@@ -13,10 +13,11 @@ import { api } from '../../../supabaseAPI';
 
 interface SimpleExpenseFormProps {
     currentUser: User;
+    onCreated?:  (id: string, desc: string) => void;
     onClose:     () => void;
 }
 
-export const SimpleExpenseForm: React.FC<SimpleExpenseFormProps> = ({ currentUser, onClose }) => {
+export const SimpleExpenseForm: React.FC<SimpleExpenseFormProps> = ({ currentUser, onCreated, onClose }) => {
     const qc = useQueryClient();
     
     const [description, setDescription] = useState('');
@@ -45,6 +46,7 @@ export const SimpleExpenseForm: React.FC<SimpleExpenseFormProps> = ({ currentUse
             qc.invalidateQueries({ queryKey: ['expenses'] });
             if (orderId) qc.invalidateQueries({ queryKey: ['expenses', 'order', orderId] });
             
+            if (onCreated) onCreated('new', description.trim());
             alert('Quick Expense recorded!');
             onClose();
         } catch (e: any) {
