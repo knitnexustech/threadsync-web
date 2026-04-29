@@ -44,8 +44,9 @@ export const QuickGroupForm: React.FC<QuickGroupFormProps> = ({ orderId, current
         try {
             // Only pass partnerId if it's a verified COMPANY (to satisfy FK constraint)
             const partnerId = selectedPartner.type === 'COMPANY' ? selectedPartner.id : undefined;
+            const contactId = selectedPartner.type === 'CONTACT' ? selectedPartner.id : undefined;
             
-            await api.createChannel(currentUser, orderId, name.trim(), partnerId);
+            await api.createChannel(currentUser, orderId, name.trim(), partnerId, contactId);
             
             qc.invalidateQueries({ queryKey: ['orders'] });
             qc.invalidateQueries({ queryKey: ['channels'] });
@@ -58,13 +59,21 @@ export const QuickGroupForm: React.FC<QuickGroupFormProps> = ({ orderId, current
         }
     };
 
+    const acceptedIds = new Set(partnersData?.accepted.map(p => p.id) || []);
+
     const filteredAccepted = partnersData?.accepted.filter(p => 
         p.name.toLowerCase().includes(search.toLowerCase())
     ) || [];
 
-    const filteredContacts = partnersData?.contacts.filter(c => 
-        c.name.toLowerCase().includes(search.toLowerCase())
-    ) || [];
+    const filteredContacts = (partnersData?.contacts || []).filter(c => {
+        const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase());
+        if (!matchesSearch) return false;
+
+        // If this contact is already an accepted partner, don't show it twice
+        if (c.linked_company_id && acceptedIds.has(c.linked_company_id)) return false;
+
+        return true;
+    });
 
     const inputCls = 'w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all';
 
@@ -141,30 +150,36 @@ export const QuickGroupForm: React.FC<QuickGroupFormProps> = ({ orderId, current
                             ))}
 
                             {/* Option: CONTACTS */}
-                            {filteredContacts.map(c => (
-                                <button
-                                    key={c.id}
-                                    onClick={() => {
-                                        if (c.linked_company_id) {
-                                            setSelectedPartner({ id: c.linked_company_id, type: 'COMPANY' });
-                                        } else {
-                                            setSelectedPartner({ id: c.id, type: 'CONTACT' });
-                                        }
-                                    }}
-                                    className={`w-full flex items-center justify-between p-3 rounded-2xl border-2 transition-all ${selectedPartner?.id === c.id ? 'border-[#008069] bg-green-50/50' : 'border-gray-100 bg-white hover:border-gray-200'}`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-xs font-black">CT</div>
-                                        <div className="text-left">
-                                            <p className="text-sm font-bold text-gray-800">{c.name}</p>
-                                            <p className={`text-[10px] font-bold tracking-tight ${c.linked_company_id ? 'text-green-600' : 'text-orange-500'}`}>
-                                                {c.linked_company_id ? '✓ Registered on Kramiz' : 'Manual Contact (Offline)'}
-                                            </p>
+                            {filteredContacts.map(c => {
+                                const isSelected = c.linked_company_id 
+                                    ? (selectedPartner?.id === c.linked_company_id && selectedPartner.type === 'COMPANY')
+                                    : (selectedPartner?.id === c.id && selectedPartner.type === 'CONTACT');
+
+                                return (
+                                    <button
+                                        key={c.id}
+                                        onClick={() => {
+                                            if (c.linked_company_id) {
+                                                setSelectedPartner({ id: c.linked_company_id, type: 'COMPANY' });
+                                            } else {
+                                                setSelectedPartner({ id: c.id, type: 'CONTACT' });
+                                            }
+                                        }}
+                                        className={`w-full flex items-center justify-between p-3 rounded-2xl border-2 transition-all ${isSelected ? 'border-[#008069] bg-green-50/50' : 'border-gray-100 bg-white hover:border-gray-200'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-xs font-black">CT</div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-bold text-gray-800">{c.name}</p>
+                                                <p className={`text-[10px] font-bold tracking-tight ${c.linked_company_id ? 'text-green-600' : 'text-orange-500'}`}>
+                                                    {c.linked_company_id ? '✓ Registered on Kramiz' : 'Manual Contact (Offline)'}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                    {selectedPartner?.id === c.id && <div className="w-5 h-5 rounded-full bg-[#008069] flex items-center justify-center text-white text-[10px]">✓</div>}
-                                </button>
-                            ))}
+                                        {isSelected && <div className="w-5 h-5 rounded-full bg-[#008069] flex items-center justify-center text-white text-[10px]">✓</div>}
+                                    </button>
+                                );
+                            })}
 
                             {isLoading && (
                                 <div className="py-8 text-center">

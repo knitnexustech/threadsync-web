@@ -8,11 +8,9 @@
  *   - Kramiz ID (auto-generated fallback identity)
  *   - Organization deletion
  *
- * Called via the main api object in supabaseAPI.ts — do not call directly.
  */
-
 import { supabase, supabaseAdmin } from '../supabaseClient';
-import { Company, User } from '../types';
+import { Company, User, hasPermission } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // READ

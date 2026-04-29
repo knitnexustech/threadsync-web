@@ -46,6 +46,11 @@ export const useContacts = (currentUser: User) => {
         refetchInterval: 60_000, // poll every 60s for "joined Kramiz" badge updates
     });
 
+    const { data: allPartnerships = [] } = useQuery({
+        queryKey: ['all-partnerships', currentUser.company_id],
+        queryFn:  () => api.getAllPartnerships(currentUser),
+    });
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     const invalidate = () => queryClient.invalidateQueries({ queryKey: qKey });
@@ -163,14 +168,29 @@ export const useContacts = (currentUser: User) => {
 
     // ── Derived lists ──────────────────────────────────────────────────────────
 
-    const newOnKramiz = contacts.filter(c => c.linked_company_id && !c.invite_sent_at);
-    const invited     = contacts.filter(c => c.invite_sent_at && !c.linked_company_id);
-    const uncontacted = contacts.filter(c => !c.invite_sent_at && !c.linked_company_id);
-    const linked      = contacts.filter(c => c.linked_company_id);
+    const activePartnerIds = allPartnerships
+        .filter(p => p.status === 'ACCEPTED')
+        .map(p => (p.requester_id === currentUser.company_id ? p.receiver_id : p.requester_id));
+
+    const pendingPartnerIds = allPartnerships
+        .filter(p => p.status === 'PENDING')
+        .map(p => (p.requester_id === currentUser.company_id ? p.receiver_id : p.requester_id));
+    
+    // Map contacts to include isPartner and isPendingPartner flags
+    const processedContacts = contacts.map(c => ({
+        ...c,
+        isPartner: c.linked_company_id ? activePartnerIds.includes(c.linked_company_id) : false,
+        isPendingPartner: c.linked_company_id ? pendingPartnerIds.includes(c.linked_company_id) : false
+    }));
+
+    const newOnKramiz = processedContacts.filter(c => c.linked_company_id && !c.isPartner);
+    const invited     = processedContacts.filter(c => c.invite_sent_at && !c.linked_company_id);
+    const uncontacted = processedContacts.filter(c => !c.linked_company_id || (c.linked_company_id && c.isPartner));
+    const linked      = processedContacts.filter(c => c.linked_company_id);
 
     return {
         // Data
-        contacts, isLoading,
+        contacts: processedContacts, isLoading,
         newOnKramiz, invited, uncontacted, linked,
 
         // Modal state

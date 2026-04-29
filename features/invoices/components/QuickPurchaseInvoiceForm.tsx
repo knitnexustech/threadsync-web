@@ -2,8 +2,6 @@
 /**
  * QuickPurchaseInvoiceForm.tsx
  * Feature: Formal Vendor Bills (Accounts Payable)
- * 
- * Professional form for recording official tax invoices from partners or contacts.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -20,7 +18,6 @@ interface QuickPurchaseInvoiceFormProps {
 export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> = ({ currentUser, initialData, onClose }) => {
     const qc = useQueryClient();
     
-    // --- State ---
     const [sellerSearch, setSellerSearch]       = useState('');
     const [selectedSeller, setSelectedSeller]   = useState<{ id: string, companyId?: string, type: 'partner' | 'contact', name: string } | null>(
         initialData ? {
@@ -40,7 +37,6 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
     const [orderId, setOrderId]           = useState(initialData?.order_id || '');
     const [saving, setSaving]             = useState(false);
 
-    // --- Data Fetching ---
     const { data: partners = [] } = useQuery<Company[]>({
         queryKey: ['partners', currentUser.company_id],
         queryFn:  () => api.getPartners(currentUser),
@@ -56,7 +52,6 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
         queryFn:  () => api.getOrders(currentUser),
     });
 
-    // --- Derived Data ---
     const allPossibleSellers = [
         ...partners.map(p => ({ id: p.id, companyId: p.id, type: 'partner' as const, name: p.name, tag: 'Partner' })),
         ...contacts.map(c => ({ id: c.id, companyId: c.linked_company_id, type: 'contact' as const, name: c.name, tag: 'Manual Contact' }))
@@ -79,7 +74,6 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
         return parseFloat((subtotal + taxAmount).toFixed(2));
     }, [subtotal, taxAmount]);
 
-    // --- Item Handlers ---
     const addItem = () => setItems([...items, { description: '', hsn_code: '', quantity: '1', rate: '', unit: 'PCS' }]);
     const removeItem = (index: number) => setItems(items.filter((_, i) => i !== index));
     const updateItem = (index: number, field: string, value: any) => {
@@ -88,7 +82,6 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
         setItems(newItems);
     };
 
-    // --- Submit ---
     const handleCreate = async () => {
         const finalSellerName = selectedSeller ? selectedSeller.name : sellerSearch.trim();
         if (!finalSellerName) return alert('Please enter or select a vendor');
@@ -140,7 +133,6 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
         <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-[4px]" onClick={onClose}>
             <div className="modal-container w-full max-w-2xl bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300 flex flex-col max-h-[85dvh]" onClick={e => e.stopPropagation()}>
                 
-                {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white flex-none">
                     <div>
                         <h3 className="text-xl font-bold text-gray-900 tracking-tight">Add Vendor Bill</h3>
@@ -149,10 +141,7 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 transition-colors">✕</button>
                 </div>
 
-                {/* Body */}
                 <div className="px-6 pt-6 pb-12 overflow-y-auto flex-1 space-y-5">
-                    
-                    {/* Seller Selection */}
                     <div className="relative">
                         <label className={labelCls}>Select Vendor</label>
                         <div className="relative">
@@ -208,7 +197,6 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                         </div>
                     </div>
 
-                    {/* Items */}
                     <div className="bg-gray-50 p-4 rounded-2xl space-y-3">
                         <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Line Items</h4>
                         {items.map((item, idx) => (
@@ -228,7 +216,6 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                         <button onClick={addItem} className="text-xs font-bold text-orange-600 hover:underline px-1">+ Add Row</button>
                     </div>
 
-                    {/* Tax & Summary */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className={labelCls}>GST Type</label>
@@ -254,7 +241,6 @@ export const QuickPurchaseInvoiceForm: React.FC<QuickPurchaseInvoiceFormProps> =
                     </div>
                 </div>
 
-                {/* Footer */}
                 <div className="p-6 border-t border-gray-100 flex gap-3 bg-gray-50/50 flex-none safe-pb-deep">
                     <button onClick={onClose} className="flex-1 py-4 text-gray-500 font-bold rounded-2xl hover:bg-gray-100">Cancel</button>
                     <button

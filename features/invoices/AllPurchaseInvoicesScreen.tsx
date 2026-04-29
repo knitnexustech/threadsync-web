@@ -17,7 +17,8 @@ import { useNavigate } from 'react-router-dom';
 export const AllPurchaseInvoicesScreen: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const qc = useQueryClient();
     const navigate = useNavigate();
-    const [tab, setTab] = useState<'BILLS' | 'EXPENSES'>('BILLS');
+    const canViewBills = hasPermission(currentUser.role, 'VIEW_FINANCIALS');
+    const [tab, setTab] = useState<'BILLS' | 'EXPENSES'>(canViewBills ? 'BILLS' : 'EXPENSES');
     const [editInv, setEditInv] = useState<Invoice | null>(null);
 
     // Queries
@@ -51,23 +52,28 @@ export const AllPurchaseInvoicesScreen: React.FC<{ currentUser: User }> = ({ cur
 
     return (
         <div className="flex flex-col h-full bg-[#f8f9fa] animate-in slide-in-from-right-4 duration-300">
-            <SubScreenHeader title="Purchase & Expenses" onBack={() => navigate('/dashboard')} />
+            <SubScreenHeader 
+                title={canViewBills ? "Purchase & Expenses" : "My Expenses"} 
+                onBack={() => navigate('/dashboard')} 
+            />
 
-            {/* Tab Switcher */}
-            <div className="px-4 py-2 bg-white border-b border-gray-100 flex gap-2">
-                <button 
-                    onClick={() => setTab('BILLS')}
-                    className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${tab === 'BILLS' ? 'bg-orange-600 text-white shadow-lg shadow-orange-100' : 'text-gray-400 hover:bg-gray-50'}`}
-                >
-                    Vendor Bills 📥
-                </button>
-                <button 
-                    onClick={() => setTab('EXPENSES')}
-                    className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${tab === 'EXPENSES' ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-100' : 'text-gray-400 hover:bg-gray-50'}`}
-                >
-                    Cash Expenses 💸
-                </button>
-            </div>
+            {/* Tab Switcher - Only for those who can see both */}
+            {canViewBills && (
+                <div className="px-4 py-2 bg-white border-b border-gray-100 flex gap-2">
+                    <button 
+                        onClick={() => setTab('BILLS')}
+                        className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${tab === 'BILLS' ? 'bg-orange-600 text-white shadow-lg shadow-orange-100' : 'text-gray-400 hover:bg-gray-50'}`}
+                    >
+                        Vendor Bills 📥
+                    </button>
+                    <button 
+                        onClick={() => setTab('EXPENSES')}
+                        className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${tab === 'EXPENSES' ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-100' : 'text-gray-400 hover:bg-gray-50'}`}
+                    >
+                        Cash Expenses 💸
+                    </button>
+                </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
                 {tab === 'BILLS' ? (
@@ -88,8 +94,12 @@ export const AllPurchaseInvoicesScreen: React.FC<{ currentUser: User }> = ({ cur
                                     <div className="text-right">
                                         <p className="text-lg font-black text-gray-900">{fmtAmount(inv.total_amount)}</p>
                                         <div className="flex gap-2 justify-end mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => setEditInv(inv)} className="text-[10px] font-bold text-blue-500 uppercase">Edit</button>
-                                            <button onClick={() => handleDeleteBill(inv.id)} className="text-[10px] font-bold text-red-500 uppercase">Delete</button>
+                                            {hasPermission(currentUser.role, 'EDIT_PURCHASE_INVOICE') && (
+                                                <button onClick={() => setEditInv(inv)} className="text-[10px] font-bold text-blue-500 uppercase">Edit</button>
+                                            )}
+                                            {hasPermission(currentUser.role, 'DELETE_PURCHASE_INVOICE') && (
+                                                <button onClick={() => handleDeleteBill(inv.id)} className="text-[10px] font-bold text-red-500 uppercase">Delete</button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -112,7 +122,9 @@ export const AllPurchaseInvoicesScreen: React.FC<{ currentUser: User }> = ({ cur
                                     </div>
                                     <div className="text-right">
                                         <p className="text-lg font-black text-gray-900">{fmtAmount(ex.amount)}</p>
-                                        <button onClick={() => handleDeleteExpense(ex.id)} className="text-[10px] font-bold text-red-500 uppercase mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Delete</button>
+                                        {hasPermission(currentUser.role, 'DELETE_SIMPLE_EXPENSE') && (
+                                            <button onClick={() => handleDeleteExpense(ex.id)} className="text-[10px] font-bold text-red-500 uppercase mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Delete</button>
+                                        )}
                                     </div>
                                 </div>
                             ))

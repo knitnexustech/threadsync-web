@@ -27,9 +27,9 @@ export const usePartnerships = (currentUser: User) => {
 
     // ─── Data queries ──────────────────────────────────────────────────────────
 
-    const { data: partners = [], isLoading: loadingPartners } = useQuery({
-        queryKey: ['partners', currentUser.company_id],
-        queryFn: () => api.getPartners(currentUser),
+    const { data: allPartnerships = [], isLoading: loadingAll } = useQuery({
+        queryKey: ['all-partnerships', currentUser.company_id],
+        queryFn: () => api.getAllPartnerships(currentUser),
     });
 
     const { data: pendingInvites = [], isLoading: loadingInvites } = useQuery({
@@ -37,6 +37,12 @@ export const usePartnerships = (currentUser: User) => {
         queryFn: () => api.getPendingInvites(currentUser),
         refetchInterval: 30_000, // Poll every 30s so invites appear without refresh
     });
+
+    const partners = allPartnerships
+        .filter(p => p.status === 'ACCEPTED')
+        .map(p => (p.requester_id === currentUser.company_id ? p.receiver : p.requester)) as Company[];
+
+    const loadingPartners = loadingAll;
 
     // ─── Search handler ────────────────────────────────────────────────────────
 
@@ -55,8 +61,11 @@ export const usePartnerships = (currentUser: User) => {
                 setSearchError('No company found. Check the GST number or Kramiz ID and try again.');
             } else if (result.id === currentUser.company_id) {
                 setSearchError("That's your own company!");
-            } else if (partners.some(p => p.id === result.id)) {
-                setSearchError('You are already connected with this company.');
+            } else if (allPartnerships.some(p => 
+                (p.requester_id === result.id || p.receiver_id === result.id) && 
+                (p.status === 'ACCEPTED' || p.status === 'PENDING')
+            )) {
+                setSearchError('A partnership request is already active or pending with this company.');
             } else {
                 setSearchResult(result);
             }
@@ -80,6 +89,7 @@ export const usePartnerships = (currentUser: User) => {
             api.sendPartnershipRequest(currentUser, targetCompanyId),
         onSuccess: () => {
             clearSearch();
+            queryClient.invalidateQueries({ queryKey: ['all-partnerships'] });
             queryClient.invalidateQueries({ queryKey: ['partners'] });
         },
         onError: (err: any) => alert(err.message || 'Failed to send invite'),
@@ -89,6 +99,7 @@ export const usePartnerships = (currentUser: User) => {
         mutationFn: (partnershipId: string) =>
             api.acceptPartnershipRequest(currentUser, partnershipId),
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['all-partnerships'] });
             queryClient.invalidateQueries({ queryKey: ['partners'] });
             queryClient.invalidateQueries({ queryKey: ['pending-invites'] });
         },
@@ -99,6 +110,7 @@ export const usePartnerships = (currentUser: User) => {
         mutationFn: (partnershipId: string) =>
             api.rejectPartnershipRequest(currentUser, partnershipId),
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['all-partnerships'] });
             queryClient.invalidateQueries({ queryKey: ['pending-invites'] });
         },
         onError: (err: any) => alert(err.message || 'Failed to decline invite'),

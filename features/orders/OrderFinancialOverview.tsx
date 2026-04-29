@@ -85,21 +85,15 @@ export const OrderFinancialOverview: React.FC<OrderFinancialOverviewProps> = ({ 
             />
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-6">
-                {/* 1. Profit Summary */}
-                {canViewFinancials ? (
+                {/* 1. Profit Summary - Admin Only */}
+                {currentUser.role === 'ADMIN' ? (
                     <div className="grid grid-cols-4 gap-2">
                         {renderCard('📈', 'Sales', salesTotal, 'text-[#008069]')}
                         {renderCard('📉', 'Bills', purchaseTotal, 'text-orange-600')}
                         {renderCard('💸', 'Expenses', expenseTotal, 'text-red-500')}
                         {renderCard(netProfit >= 0 ? '💰' : '⚠️', 'Margin', Math.abs(netProfit), profitColor)}
                     </div>
-                ) : (
-                    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm text-center">
-                        <span className="text-2xl mb-2 block">🔒</span>
-                        <p className="text-sm font-bold text-gray-900">Financial Data Restricted</p>
-                        <p className="text-[11px] text-gray-400 mt-1">Contact admin for permission to view profit margins.</p>
-                    </div>
-                )}
+                ) : null}
 
                 {/* 2. Inward Challans */}
                 <section>
@@ -161,8 +155,7 @@ export const OrderFinancialOverview: React.FC<OrderFinancialOverviewProps> = ({ 
                     </div>
                 </section>
 
-                {/* 4. Expenses */}
-                {canViewFinancials && (
+                {/* 4. Expenses - All Team Members */}
                     <section>
                         <h4 className="px-1 text-[13px] font-bold text-gray-600 uppercase tracking-widest mb-3 flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
@@ -188,9 +181,8 @@ export const OrderFinancialOverview: React.FC<OrderFinancialOverviewProps> = ({ 
                             )}
                         </div>
                     </section>
-                )}
 
-                {/* 5. Purchase Invoices */}
+                {/* 5. Purchase Invoices - All Team Members */}
                 {canViewFinancials && (
                     <section>
                         <h4 className="px-1 text-[13px] font-bold text-gray-600 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -222,8 +214,8 @@ export const OrderFinancialOverview: React.FC<OrderFinancialOverviewProps> = ({ 
                     </section>
                 )}
 
-                {/* 5. Sales Invoices */}
-                {canViewFinancials && (
+                {/* 6. Sales Invoices - Admin Only */}
+                {currentUser.role === 'ADMIN' && (
                     <section>
                         <h4 className="px-1 text-[13px] font-bold text-gray-600 uppercase tracking-widest mb-3 flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#008069]"></span>

@@ -131,7 +131,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                     return bCreated - aCreated;
                                 });
 
-                                if (filteredOrders.length === 0) return <div className="p-12 text-center text-gray-400 text-sm italic">No matching orders found.</div>;
+                                if (filteredOrders.length === 0) {
+                                    const hasAssignedTasks = allChannels.length > 0;
+                                    return (
+                                        <div className="p-10 text-center">
+                                            <p className="text-gray-400 text-sm italic mb-4">No matching orders found.</p>
+                                            {hasAssignedTasks && (
+                                                <div className="bg-green-50/50 rounded-2xl p-5 border border-green-100/50">
+                                                    <p className="text-[11px] text-[#008069] font-black uppercase tracking-[0.15em] leading-relaxed">
+                                                    Groups from partners appear in the <span onClick={() => setSidebarView('PARTNER')} className="underline decoration-2 underline-offset-2 cursor-pointer hover:text-[#005c4b] transition-colors">Partners</span> tab above.
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
 
                                 return filteredOrders.map((order, idx) => {
                                     const orderChannels = channelsMap[order.id] || [];
@@ -152,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                                     <p className="text-[12px] text-gray-500 font-bold truncate mt-1 tracking-tight">{order.style_number}</p>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 shrink-0">
-                                                    {canEditOrder && (
+                                                    {canEditOrder && order.manufacturer_id === currentUser.company_id && (
                                                         <button onClick={(e) => { e.stopPropagation(); openModal('EDIT_ORDER', order); }} className="p-2 hover:bg-white rounded-full text-gray-400 hover:text-[#008069] transition-all">
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                         </button>
@@ -200,7 +214,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser, onSelectGroup, se
                                                             </div>
                                                         );
                                                     })}
-                                                    {!isCompleted && canCreateGroup && (
+                                                    {!isCompleted && canCreateGroup && order.manufacturer_id === currentUser.company_id && (
                                                         <div className="px-6 py-3 bg-white">
                                                             <button onClick={() => openModal('NEW_GROUP', { orderId: order.id })} className="text-[13px] font-black text-[#008069] hover:text-[#005c4b] flex items-center gap-1.5 transition-all uppercase tracking-widest">+ Add Group</button>
                                                         </div>

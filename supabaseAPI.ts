@@ -15,31 +15,13 @@ import * as inwardChallanApi   from './api/inwardChallans';
 import * as salesInvoiceApi    from './api/salesInvoices';
 import * as purchaseInvoiceApi from './api/purchaseInvoices';
 import * as expensesApi        from './api/expenses';
+import * as partnerUtils     from './services/partnerUtils';
 
 // ============================================
 // AUTHENTICATION
 // ============================================
 
 export const api = {
-    ensureDemoData: async (currentUser: User) => {
-        // 1. Check if Order #505 exists
-        const { data: existingOrder } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('manufacturer_id', currentUser.company_id)
-            .eq('order_number', '505')
-            .single();
-
-        if (existingOrder) return; // Data already exists
-
-        // 2. Create Order #505 (this also creates the Overview channel automatically in createOrder)
-        await api.createOrder(
-            currentUser,
-            '505',
-            'S-BLUE-101',
-            [] // No additional team members for now
-        );
-    },
 
     login: async (phone: string, passcode: string) => {
         // Validate phone number format (must be exactly 10 digits)
@@ -144,22 +126,8 @@ export const api = {
 
         if (userError) throw new Error('Failed to create user: ' + userError.message);
 
-        // ── Contacts Sync ────────────────────────────────────────────────────
-        // If any company had this GST in their contacts book, link + update them
-        // so their records reflect the verified details Company B just confirmed.
-        if (gstNumber) {
-            await supabaseAdmin
-                .from('contacts')
-                .update({
-                    linked_company_id: newCompany.id,
-                    name:    companyName.trim(),
-                    address: address?.trim()  || null,
-                    state:   state?.trim()    || null,
-                    pincode: pincode?.trim()  || null,
-                })
-                .eq('gst_number', gstNumber)
-                .is('linked_company_id', null); // only unlinked contacts — no-op if none
-        }
+        // ── Contacts & Channels Auto-Bridge ─────────────────────────────────
+        await partnerUtils.bridgeContactToCompany(newCompany.id);
 
         return { user: newUser as User, company: newCompany as Company, kramizId };
     },
@@ -171,44 +139,27 @@ export const api = {
     getOrders: async (currentUser: User): Promise<Order[]> => {
         if (!currentUser) throw new Error('User not authenticated');
 
-        // ── Visibility rule ───────────────────────────────────────────────────────
-        // ADMIN → sees ALL orders for their company (no channel join needed)
-        // Everyone else → sees only orders where they are a channel member
-
-        if (currentUser.role === 'ADMIN') {
-            const { data, error } = await supabase
-                .from('orders')
-                .select('*')
-                .eq('manufacturer_id', currentUser.company_id)
-                .order('created_at', { ascending: false });
-
-            if (error) throw new Error(error.message);
-            return (data || []) as Order[];
+        // Robust visibility: Match by creator ID, company UUID, or company Name (fallback)
+        const filters = [`created_by.eq.${currentUser.id}`];
+        
+        if (currentUser.company_id) {
+            filters.push(`manufacturer_id.eq.${currentUser.company_id}`);
         }
-
-        // Non-admin: membership-based visibility
-        const { data: memberChannels, error: memberError } = await supabase
-            .from('channel_members')
-            .select('channel_id')
-            .eq('user_id', currentUser.id);
-
-        if (memberError) throw new Error(memberError.message);
-
-        const channelIds = (memberChannels || []).map(m => m.channel_id);
-        if (channelIds.length === 0) return [];
-
-        const { data: channels } = await supabase
-            .from('channels')
-            .select('order_id')
-            .in('id', channelIds);
-
-        const orderIds = [...new Set((channels || []).map(ch => ch.order_id))];
-        if (orderIds.length === 0) return [];
+        
+        // If we have the company name, try to match orders where manufacturer_id might be 
+        // linked to a company with that name (rare fallback)
+        if (currentUser.company?.name) {
+             // We can't easily join-filter in a single .or() in Supabase without complex RPC,
+             // so we rely on the UUID being correctly synced now.
+        }
 
         const { data, error } = await supabase
             .from('orders')
-            .select('*')
-            .in('id', orderIds)
+            .select(`
+                *,
+                manufacturer_company:companies!manufacturer_id(*)
+            `)
+            .or(filters.join(','))
             .order('created_at', { ascending: false });
 
         if (error) throw new Error(error.message);
@@ -500,7 +451,7 @@ export const api = {
         })) as Channel[];
     },
 
-    createChannel: async (currentUser: User, orderId: string, name: string, vendorId?: string | null): Promise<Channel> => {
+    createChannel: async (currentUser: User, orderId: string, name: string, vendorId?: string | null, contactId?: string | null): Promise<Channel> => {
         if (!hasPermission(currentUser.role, 'CREATE_CHANNEL')) {
             throw new Error('You do not have permission to create groups');
         }
@@ -511,7 +462,8 @@ export const api = {
                 order_id: orderId,
                 name: name,
                 vendor_id: vendorId || null,
-                type: vendorId ? 'VENDOR' : 'INTERNAL',
+                contact_id: contactId || null,
+                type: (vendorId || contactId) ? 'VENDOR' : 'INTERNAL',
                 status: 'ACTIVE'
             })
             .select()
@@ -519,12 +471,22 @@ export const api = {
 
         if (channelError) throw new Error(channelError.message);
 
-        // Auto-add default members (Admins + Current User + Order Creator)
-        const { data: admins } = await supabase
+        // Auto-add default members (Our Admins + Partner Admins + Current User + Order Creator)
+        const { data: ourAdmins } = await supabase
             .from('users')
             .select('id')
             .eq('company_id', currentUser.company_id)
             .eq('role', 'ADMIN');
+
+        let partnerAdminIds: string[] = [];
+        if (vendorId) {
+            const { data: pAdmins } = await supabase
+                .from('users')
+                .select('id')
+                .eq('company_id', vendorId)
+                .eq('role', 'ADMIN');
+            if (pAdmins) partnerAdminIds = pAdmins.map(a => a.id);
+        }
 
         const { data: poData } = await supabase
             .from('orders')
@@ -533,8 +495,14 @@ export const api = {
             .single();
 
         const poCreatorId = poData?.created_by;
-        const adminIds = (admins || []).map(a => a.id);
-        const allMemberIds = Array.from(new Set([...adminIds, currentUser.id, ...(poCreatorId ? [poCreatorId] : [])]));
+        const ourAdminIds = (ourAdmins || []).map(a => a.id);
+        
+        const allMemberIds = Array.from(new Set([
+            ...ourAdminIds, 
+            ...partnerAdminIds, 
+            currentUser.id, 
+            ...(poCreatorId ? [poCreatorId] : [])
+        ]));
 
         if (allMemberIds.length > 0) {
             const channelMembers = allMemberIds.map(userId => ({
@@ -918,7 +886,11 @@ export const api = {
     },
 
     getUser: async (id: string) => {
-        const { data } = await supabase.from('users').select('*').eq('id', id).single();
+        const { data } = await supabase
+            .from('users')
+            .select('*, company:companies(*)')
+            .eq('id', id)
+            .single();
         return (data || null) as User | null;
     },
 
@@ -962,4 +934,24 @@ export const api = {
     ...salesInvoiceApi,    // → client/api/salesInvoices.ts
     ...purchaseInvoiceApi, // → client/api/purchaseInvoices.ts
     ...expensesApi,        // → client/api/expenses.ts
+
+    ensureDemoData: async (currentUser: User) => {
+        // 1. Check if Order #505 exists
+        const { data: existingOrder } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('manufacturer_id', currentUser.company_id)
+            .eq('order_number', '505')
+            .single();
+
+        if (existingOrder) return; // Data already exists
+
+        // 2. Create Order #505 (this also creates the Overview channel automatically in createOrder)
+        await api.createOrder(
+            currentUser,
+            '505',
+            'S-BLUE-101',
+            [] // No additional team members for now
+        );
+    },
 };

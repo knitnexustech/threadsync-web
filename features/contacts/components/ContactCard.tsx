@@ -59,7 +59,12 @@ export const ContactCard: React.FC<ContactCardProps> = ({
                         <div className="flex flex-wrap items-center gap-2 mb-0.5">
                             <p className="font-black text-gray-900 text-sm truncate">{contact.name}</p>
 
-                            {isLinked && (
+                            {contact.isPartner && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full uppercase tracking-widest">
+                                    Partner ✓
+                                </span>
+                            )}
+                            {isLinked && !contact.isPartner && (
                                 <span className="text-[10px] font-bold px-2 py-0.5 bg-green-100 text-green-700 rounded-full uppercase tracking-widest">
                                     On Kramiz ✓
                                 </span>
@@ -115,7 +120,15 @@ export const ContactCard: React.FC<ContactCardProps> = ({
                         </div>
                         
                         {/* Primary action */}
-                        {isLinked ? (
+                        {contact.isPartner ? (
+                            <span className="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded-lg border border-blue-100 uppercase tracking-tight order-1 sm:order-2">
+                                Connected
+                            </span>
+                        ) : (contact as any).isPendingPartner ? (
+                            <span className="px-3 py-1.5 bg-amber-50 text-amber-600 text-[10px] font-black rounded-lg border border-amber-100 uppercase tracking-tight order-1 sm:order-2">
+                                Request Sent
+                            </span>
+                        ) : isLinked ? (
                             <button
                                 onClick={() => onConnect(contact)}
                                 className="px-3 py-1.5 bg-green-600 text-white text-xs font-black rounded-lg hover:bg-green-700 transition-all whitespace-nowrap order-1 sm:order-2"

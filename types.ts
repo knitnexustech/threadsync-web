@@ -34,6 +34,7 @@ export interface Contact {
   phone?: string;
   notes?: string;
   invite_sent_at?: string;
+  isPartner?: boolean;
   linked_company_id?: string;
   created_at?: string;
   linked_company?: Company;
@@ -98,7 +99,8 @@ export interface Order {
   image_url: string;
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
   created_by: string;
-  created_at?: string;
+  created_at: string;
+  manufacturer_company?: Company;
 }
 
 export interface OrderMember {
@@ -116,6 +118,7 @@ export interface Channel {
   name: string;
   type: ChannelType;
   vendor_id?: string;
+  contact_id?: string;
   status: string;
   specs: Spec[];
   files: AttachedFile[];
@@ -255,6 +258,7 @@ export interface Invoice {
   total_amount:      number;         // subtotal + gst_amount (or just subtotal)
   due_date?:         string;         // ISO date
   notes?:            string;
+  seller_name?:      string;         // Fallback/cached name for vendor bills
 
   created_by:        string;         // user ID
   created_at?:       string;
@@ -346,6 +350,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'VIEW_DC',
     'CREATE_PURCHASE_INVOICE', 'EDIT_PURCHASE_INVOICE', 'DELETE_PURCHASE_INVOICE',
     'CREATE_SIMPLE_EXPENSE', 'DELETE_SIMPLE_EXPENSE',
+    'VIEW_FINANCIALS',
     'MANAGE_CONTACTS',
     'SEND_PARTNERSHIP_INVITE', 'ACCEPT_PARTNERSHIP_INVITE',
   ],
@@ -358,6 +363,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'CREATE_PURCHASE_INVOICE', 'EDIT_PURCHASE_INVOICE', 'DELETE_PURCHASE_INVOICE',
     'CREATE_SIMPLE_EXPENSE', 'DELETE_SIMPLE_EXPENSE',
     'ADD_TEAM_MEMBER',
+    'VIEW_FINANCIALS',
     'MANAGE_CONTACTS',
     'SEND_PARTNERSHIP_INVITE', 'ACCEPT_PARTNERSHIP_INVITE',
   ],

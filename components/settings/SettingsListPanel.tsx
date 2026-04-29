@@ -1,13 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Company } from '../../types';
+import { User, Company, hasPermission } from '../../types';
 import { Card } from './SettingsLayout';
 
 interface ListPanelProps {
+    currentUser: User;
     userCompany: Company | null | undefined;
     teamCount: number;
     activeRoute: string;
-    isAdmin: boolean;
     onLogout: () => void;
 }
 
@@ -44,13 +44,15 @@ const SectionLabel: React.FC<{ label: string }> = ({ label }) => (
 );
 
 export const SettingsListPanel: React.FC<ListPanelProps> = ({ 
+    currentUser,
     userCompany, 
     teamCount, 
     activeRoute, 
-    isAdmin, 
     onLogout 
 }) => {
     const navigate = useNavigate();
+    const canManagePartners = hasPermission(currentUser.role, 'MANAGE_CONTACTS');
+    const canDeleteOrg = hasPermission(currentUser.role, 'DELETE_ORG');
 
     return (
         <div className="flex flex-col h-full bg-[#f0f2f5]">
@@ -92,7 +94,7 @@ export const SettingsListPanel: React.FC<ListPanelProps> = ({
                         onClick={() => navigate('/settings/team')}     
                         active={activeRoute === 'team'} 
                     />
-                    {isAdmin && (
+                    {canManagePartners && (
                         <ListRow 
                             icon="🤝" 
                             iconBg="bg-teal-100" 
@@ -114,7 +116,8 @@ export const SettingsListPanel: React.FC<ListPanelProps> = ({
                         onClick={() => navigate('/settings/security')} 
                         active={activeRoute === 'security'} 
                     />
-                    {isAdmin && (
+
+                    {canDeleteOrg && (
                         <ListRow 
                             icon="⚠️" 
                             iconBg="bg-red-100" 

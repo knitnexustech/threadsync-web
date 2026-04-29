@@ -31,10 +31,20 @@ export const useAppSync = () => {
 
                 const savedUser = loadSession();
                 if (savedUser) {
-                    setUser(savedUser);
-                    const token = localStorage.getItem('native_push_token');
-                    if (token) {
-                        api.saveNativePushToken(savedUser.id, token);
+                    // Force refresh profile from DB to get latest company_id/role
+                    const latestProfile = await api.getUser(savedUser.id);
+                    if (latestProfile) {
+                        setUser(latestProfile);
+                        saveSession(latestProfile, true); // Update local storage too
+                        
+                        const token = localStorage.getItem('native_push_token');
+                        if (token) {
+                            api.saveNativePushToken(latestProfile.id, token);
+                        }
+                    } else {
+                        // User no longer exists
+                        clearSession();
+                        setUser(null);
                     }
                 }
             } catch (err) {

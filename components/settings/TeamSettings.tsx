@@ -113,7 +113,9 @@ export const TeamSettings: React.FC<TeamSettingsProps> = ({ currentUser }) => {
                                         <p className="text-[12px] text-gray-400">{member.role.replace(/_/g, ' ')}</p>
                                     )}
                                     <span className="text-[12px] text-gray-300">·</span>
-                                    <p className="text-[12px] text-gray-400 font-mono">{member.phone}</p>
+                                    <p className="text-[12px] text-gray-400 font-mono">
+                                        {member.phone || <span className="text-red-300">No Number Found</span>}
+                                    </p>
                                 </div>
                             </div>
                             {isAdmin && member.id !== currentUser.id && (

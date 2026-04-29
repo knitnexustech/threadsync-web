@@ -40,7 +40,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onLogou
     const { teamList } = useTeam(currentUser);
     const { userCompany } = useSettings(currentUser);
 
-    const isAdmin = currentUser.role === 'ADMIN';
+
 
     return (
         <div className="flex h-full w-full overflow-hidden">
@@ -50,10 +50,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onLogou
                 ${!isRoot ? 'hidden md:block md:w-72 lg:w-80' : 'block w-full md:w-72 lg:w-80'}
             `}>
                 <SettingsListPanel 
+                    currentUser={currentUser}
                     userCompany={userCompany}
                     teamCount={teamList.length}
                     activeRoute={activeRoute}
-                    isAdmin={isAdmin}
                     onLogout={onLogout}
                 />
             </div>

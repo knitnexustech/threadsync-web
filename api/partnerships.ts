@@ -10,6 +10,7 @@
 
 import { supabase } from '../supabaseClient';
 import { Company, User, Partnership, hasPermission } from '../types';
+import { bridgeContactToCompany } from '../services/partnerUtils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEARCH
@@ -86,6 +87,20 @@ export const acceptPartnershipRequest = async (
         .single();
 
     if (error) throw new Error('Failed to accept: ' + error.message);
+
+    // ── Auto-Bridge Logic ───────────────────────────────────────────────────
+    // When accepting a partnership, bridge BOTH companies' identities.
+    // This ensures that if A has a contact for B, OR B has a contact for A,
+    // they both get upgraded to real platform connections.
+    try {
+        // Bridge the requester (A)
+        await bridgeContactToCompany(data.requester_id);
+        // Bridge the receiver (B)
+        await bridgeContactToCompany(data.receiver_id);
+    } catch (bridgeErr) {
+        console.error('Non-critical Auto-Bridge failure:', bridgeErr);
+    }
+
     return data as Partnership;
 };
 
@@ -154,6 +169,21 @@ export const getPartners = async (currentUser: User): Promise<Company[]> => {
             return isRequester ? p.receiver : p.requester;
         })
         .filter(Boolean) as Company[];
+};
+
+/**
+ * Get ALL partnership records involving the current company.
+ * Used to check if a request already exists (Pending/Accepted/Rejected)
+ * to avoid duplicate key errors.
+ */
+export const getAllPartnerships = async (currentUser: User): Promise<Partnership[]> => {
+    const { data, error } = await supabase
+        .from('partnerships')
+        .select('*, requester:requester_id(id, name), receiver:receiver_id(id, name)')
+        .or(`requester_id.eq.${currentUser.company_id},receiver_id.eq.${currentUser.company_id}`);
+
+    if (error) throw new Error(error.message);
+    return (data || []) as Partnership[];
 };
 
 /**

@@ -53,14 +53,19 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                         Company Name
                     </label>
                     <div className="flex flex-col sm:flex-row gap-2">
-                        <input
-                            type="text"
-                            value={editCompanyName}
-                            onChange={e => setEditCompanyName(e.target.value)}
-                            placeholder={userCompany?.name || 'Company name'}
-                            disabled={!canEdit}
-                            className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all disabled:text-gray-400 w-full"
-                        />
+                        {!canEdit ? (
+                            <div className="flex-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-700 font-medium">
+                                {editCompanyName || '—'}
+                            </div>
+                        ) : (
+                            <input
+                                type="text"
+                                value={editCompanyName}
+                                onChange={e => setEditCompanyName(e.target.value)}
+                                placeholder={userCompany?.name || 'Company name'}
+                                className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all w-full"
+                            />
+                        )}
                         {canEdit && (
                             <button
                                 onClick={handleSaveName}
@@ -81,26 +86,31 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                             <span className="ml-2 text-green-600 font-normal normal-case text-[10px]">✓ Verified</span>
                         ) : (
                             <span className="ml-2 text-orange-400 font-normal normal-case text-[10px]">
-                                Not set — partners can't search you by GST
+                                Not set
                             </span>
                         )}
                     </label>
                     <div className="flex flex-col sm:flex-row gap-2">
-                        <input
-                            type="text"
-                            value={editGSTNumber}
-                            onChange={e => handleGSTChange(e.target.value)}
-                            placeholder="e.g. 27AABCU9603R1ZX"
-                            maxLength={15}
-                            disabled={!canEdit}
-                            className={`flex-1 px-4 py-2 bg-gray-50 border rounded-xl text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-2 transition-all disabled:text-gray-400 w-full ${
-                                !isGSTValid
-                                    ? 'border-red-300 focus:ring-red-400'
-                                    : editGSTNumber.length === 15
-                                    ? 'border-green-300 focus:ring-green-400'
-                                    : 'border-gray-200 focus:ring-[#008069]'
-                            }`}
-                        />
+                        {!canEdit ? (
+                            <div className="flex-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-700 font-mono tracking-widest uppercase">
+                                {editGSTNumber || 'NOT SET'}
+                            </div>
+                        ) : (
+                            <input
+                                type="text"
+                                value={editGSTNumber}
+                                onChange={e => handleGSTChange(e.target.value)}
+                                placeholder="e.g. 27AABCU9603R1ZX"
+                                maxLength={15}
+                                className={`flex-1 px-4 py-2 bg-gray-50 border rounded-xl text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-2 transition-all w-full ${
+                                    !isGSTValid
+                                        ? 'border-red-300 focus:ring-red-400'
+                                        : editGSTNumber.length === 15
+                                        ? 'border-green-300 focus:ring-green-400'
+                                        : 'border-gray-200 focus:ring-[#008069]'
+                                }`}
+                            />
+                        )}
                         {canEdit && (
                             <button
                                 onClick={handleSaveGST}
@@ -111,16 +121,18 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                             </button>
                         )}
                     </div>
-                    <div className="flex justify-between mt-1">
-                        <p className="text-xs text-gray-400">15 chars — letters and numbers</p>
-                        <p className={`text-xs font-mono ${
-                            editGSTNumber.length === 0 ? 'text-gray-300' :
-                            editGSTNumber.length === 15 ? 'text-green-500' : 'text-red-400'
-                        }`}>
-                            {editGSTNumber.length}/15
-                        </p>
-                    </div>
-                    {!isGSTValid && (
+                    {canEdit && (
+                        <div className="flex justify-between mt-1">
+                            <p className="text-xs text-gray-400">15 chars — letters and numbers</p>
+                            <p className={`text-xs font-mono ${
+                                editGSTNumber.length === 0 ? 'text-gray-300' :
+                                editGSTNumber.length === 15 ? 'text-green-500' : 'text-red-400'
+                            }`}>
+                                {editGSTNumber.length}/15
+                            </p>
+                        </div>
+                    )}
+                    {canEdit && !isGSTValid && (
                         <p className="text-xs text-red-500 mt-0.5">GST number must be exactly 15 characters</p>
                     )}
                 </div>
@@ -142,43 +154,58 @@ export const CompanyIdentityCard: React.FC<CompanyIdentityCardProps> = ({
                         Address
                     </label>
 
-                    {/* Street address (single line) */}
-                    <input
-                        type="text"
-                        value={editAddress}
-                        onChange={e => setEditAddress(e.target.value)}
-                        placeholder="Street / locality / area"
-                        disabled={!canEdit}
-                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all disabled:text-gray-400"
-                    />
+                    {/* Street address */}
+                    {!canEdit ? (
+                        <div className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-700">
+                            {editAddress || '—'}
+                        </div>
+                    ) : (
+                        <input
+                            type="text"
+                            value={editAddress}
+                            onChange={e => setEditAddress(e.target.value)}
+                            placeholder="Street / locality / area"
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all"
+                        />
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* State */}
-                        <input
-                            type="text"
-                            value={editState}
-                            onChange={e => setEditState(e.target.value)}
-                            placeholder="State"
-                            disabled={!canEdit}
-                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all disabled:text-gray-400"
-                        />
+                        {!canEdit ? (
+                            <div className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-700">
+                                {editState || '—'}
+                            </div>
+                        ) : (
+                            <input
+                                type="text"
+                                value={editState}
+                                onChange={e => setEditState(e.target.value)}
+                                placeholder="State"
+                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#008069] transition-all"
+                            />
+                        )}
 
                         {/* PIN Code */}
-                        <input
-                            type="text"
-                            value={editPincode}
-                            onChange={e => handlePincodeChange(e.target.value)}
-                            placeholder="PIN code"
-                            maxLength={6}
-                            disabled={!canEdit}
-                            className={`w-full px-4 py-2 bg-gray-50 border rounded-xl text-sm font-mono focus:outline-none focus:ring-2 transition-all disabled:text-gray-400 ${
-                                !isPincodeValid
-                                    ? 'border-red-300 focus:ring-red-400'
-                                    : editPincode.length === 6
-                                    ? 'border-green-300 focus:ring-green-400'
-                                    : 'border-gray-200 focus:ring-[#008069]'
-                            }`}
-                        />
+                        {!canEdit ? (
+                            <div className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-700 font-mono">
+                                {editPincode || '—'}
+                            </div>
+                        ) : (
+                            <input
+                                type="text"
+                                value={editPincode}
+                                onChange={e => handlePincodeChange(e.target.value)}
+                                placeholder="PIN code"
+                                maxLength={6}
+                                className={`w-full px-4 py-2 bg-gray-50 border rounded-xl text-sm font-mono focus:outline-none focus:ring-2 transition-all ${
+                                    !isPincodeValid
+                                        ? 'border-red-300 focus:ring-red-400'
+                                        : editPincode.length === 6
+                                        ? 'border-green-300 focus:ring-green-400'
+                                        : 'border-gray-200 focus:ring-[#008069]'
+                                }`}
+                            />
+                        )}
                     </div>
 
                     {canEdit && (

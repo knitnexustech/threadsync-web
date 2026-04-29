@@ -142,7 +142,7 @@ const ChatRoomWrapper: React.FC<{ user: User }> = ({ user }) => {
     });
 
     const selectedChannel = findGroupByIdOrSlug(groupId, allChannels, orders, userCompany || undefined);
-    const selectedOrder = selectedChannel ? orders.find(p => p.id === selectedChannel.order_id) || null : null;
+    const selectedOrder = selectedChannel ? (orders.find(p => p.id === selectedChannel.order_id) || (selectedChannel as any).order) : null;
 
     if (!selectedChannel || !selectedOrder) {
         return (

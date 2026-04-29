@@ -10,7 +10,7 @@
  * Used by: CompanyIdentityCard.tsx → rendered inside SettingsPage (General tab)
  */
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../supabaseAPI';
 import { Company } from '../../types';
@@ -30,6 +30,17 @@ export const useCompanyIdentity = ({ companyId, userCompany, canEdit }: UseCompa
     const [editAddress, setEditAddress]     = useState(userCompany?.address  || '');
     const [editState, setEditState]         = useState(userCompany?.state    || '');
     const [editPincode, setEditPincode]     = useState(userCompany?.pincode  || '');
+
+    // Sync local state when userCompany arrives or changes
+    useEffect(() => {
+        if (userCompany) {
+            setEditCompanyName(userCompany.name || '');
+            setEditGSTNumber(userCompany.gst_number || '');
+            setEditAddress(userCompany.address || '');
+            setEditState(userCompany.state || '');
+            setEditPincode(userCompany.pincode || '');
+        }
+    }, [userCompany]);
 
     // GST validation: must be exactly 15 uppercase alphanumeric characters (or empty)
     const isGSTValid = editGSTNumber === '' || editGSTNumber.length === 15;

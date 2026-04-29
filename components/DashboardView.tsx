@@ -9,7 +9,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { User, Order, DeliveryChallan, InwardChallan, Invoice } from '../types';
+import { User, Order, DeliveryChallan, InwardChallan, Invoice, hasPermission, Expense } from '../types';
 import { api } from '../supabaseAPI';
 
 import { AllOrdersScreen }         from '../features/orders/AllOrdersScreen';
@@ -42,13 +42,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser }) => 
     const { data: ics = [] }         = useQuery<InwardChallan[]>  ({ queryKey: ['ics',               currentUser.company_id], queryFn: () => api.getInwardChallansReceived(currentUser) });
     const { data: sInvoices = [] }   = useQuery<Invoice[]>        ({ queryKey: ['sales_invoices',    currentUser.company_id], queryFn: () => api.getSalesInvoices(currentUser) });
     const { data: pInvoices = [] }   = useQuery<Invoice[]>        ({ queryKey: ['purchase_invoices', currentUser.company_id], queryFn: () => api.getPurchaseInvoices(currentUser) });
+    const { data: expenses = [] }    = useQuery<Expense[]>        ({ queryKey: ['expenses',          currentUser.company_id], queryFn: () => api.getExpenses(currentUser) });
 
     const rows = [
         { key: 'orders',     icon: '📦', iconBg: 'bg-green-50  border-green-100',  label: 'All Orders',        count: orders.length,    subtitle: 'Overview of all orders' },
         { key: 'dcs',        icon: '🚚', iconBg: 'bg-orange-50 border-orange-100', label: 'Delivery Challans', count: dcs.length,       subtitle: 'Outward dispatches' },
         { key: 'ics',        icon: '📥', iconBg: 'bg-teal-50   border-teal-100',   label: 'Inward Challans',   count: ics.length,       subtitle: 'Goods received' },
         (currentUser.role === 'ADMIN') && { key: 'sales_invoices', icon: '🧾', iconBg: 'bg-indigo-50 border-indigo-100', label: 'Sales Invoices',    count: sInvoices.length,  subtitle: 'Bills issued' },
-        { key: 'purchase_invoices', icon: '💸', iconBg: 'bg-orange-50 border-orange-100', label: 'Purchase Invoices', count: pInvoices.length,  subtitle: 'Bills received' },
+        (hasPermission(currentUser.role, 'VIEW_FINANCIALS') || hasPermission(currentUser.role, 'CREATE_SIMPLE_EXPENSE')) && { 
+            key: 'purchase_invoices', 
+            icon: '💸', 
+            iconBg: 'bg-orange-50 border-orange-100', 
+            label: hasPermission(currentUser.role, 'VIEW_FINANCIALS') ? 'Purchase Invoices' : 'Expenses', 
+            count: hasPermission(currentUser.role, 'VIEW_FINANCIALS') ? pInvoices.length : expenses.length, 
+            subtitle: hasPermission(currentUser.role, 'VIEW_FINANCIALS') ? 'Bills received' : 'My petty cash' 
+        },
     ].filter(Boolean) as any[];
 
     const screenProps = { currentUser };
